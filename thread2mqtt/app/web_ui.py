@@ -870,13 +870,7 @@ class Thread2MqttWebUi:
 
     @staticmethod
     def _serialize_device(device: Device) -> dict[str, Any]:
-        capabilities = sorted(
-            {
-                mapping.attribute_key
-                for endpoint in device.endpoints.values()
-                for mapping in endpoint.entity_mappings
-            }
-        )
+      capabilities = sorted(device.get_capabilities())
         state = device.get_state_payload()
         return {
             "node_id": device.node_id,
@@ -888,9 +882,9 @@ class Thread2MqttWebUi:
             "state": state,
             "capabilities": capabilities,
             "controls": {
-                "state": "state" in state,
-                "brightness": "brightness" in state,
-                "color_temp": "color_temp" in state,
+              "state": device.get_endpoint_for_command("state") is not None,
+              "brightness": device.get_endpoint_for_command("brightness") is not None,
+              "color_temp": device.get_endpoint_for_command("color_temp") is not None,
             },
         }
 

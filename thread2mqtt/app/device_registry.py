@@ -28,6 +28,12 @@ ATTR_NODE_LABEL = f"0/{_BI}/5"
 ATTR_SERIAL_NUMBER = f"0/{_BI}/15"
 ATTR_UNIQUE_ID = f"0/{_BI}/17"
 
+_COMMAND_PLATFORMS: dict[str, set[str]] = {
+    "state": {"light", "switch"},
+    "brightness": {"light", "switch"},
+    "color_temp": {"light"},
+}
+
 
 def _mapping_identity(mapping: EntityMapping) -> tuple[str, str, int, int]:
     return (
@@ -151,6 +157,28 @@ class Device:
                 if value is not None:
                     state[mapping.attribute_key] = value
         return state
+
+    def get_capabilities(self) -> set[str]:
+        """Return supported state keys derived from endpoint mappings."""
+        return {
+            mapping.attribute_key
+            for endpoint in self.endpoints.values()
+            for mapping in endpoint.entity_mappings
+        }
+
+    def get_endpoint_for_command(self, attribute_key: str) -> int | None:
+        """Return an endpoint that supports a mutable command key."""
+        supported_platforms = _COMMAND_PLATFORMS.get(attribute_key)
+        if not supported_platforms:
+            return None
+
+        for ep_id, ep_info in self.endpoints.items():
+            for mapping in ep_info.entity_mappings:
+                if mapping.attribute_key != attribute_key:
+                    continue
+                if mapping.ha_platform in supported_platforms:
+                    return ep_id
+        return None
 
     # -- update ---------------------------------------------------------
 

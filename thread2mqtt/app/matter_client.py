@@ -231,7 +231,7 @@ class MatterClient:
         event_type = data.get("event")
         if not event_type:
             return
-        event_data = data.get("data")
+        event_data = self._normalize_event_data(event_type, data.get("data"))
         self._update_node_cache(event_type, event_data)
 
         for cb in self._event_callbacks.get(event_type, []):
@@ -239,6 +239,17 @@ class MatterClient:
                 cb(event_type, event_data)
             except Exception:
                 LOGGER.exception("Error in event callback for %s", event_type)
+
+    @staticmethod
+    def _normalize_event_data(event_type: str, event_data: Any) -> Any:
+        if event_type == EVENT_ATTRIBUTE_UPDATED and isinstance(event_data, (list, tuple)) and len(event_data) == 3:
+            node_id, attribute_path, value = event_data
+            return {
+                "node_id": node_id,
+                "attribute_path": attribute_path,
+                "value": value,
+            }
+        return event_data
 
     def _update_node_cache(self, event_type: str, event_data: Any) -> None:
         if event_type in (EVENT_NODE_ADDED, EVENT_NODE_UPDATED) and isinstance(event_data, dict):

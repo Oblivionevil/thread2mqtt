@@ -90,13 +90,19 @@ async def async_main() -> int:
                     bridge.remove_device_discovery(dev)
 
         def _on_attr_updated(_event_type: str, data: object) -> None:
+            nid: int | None = None
             if isinstance(data, dict):
-                nid = data.get("node_id")
-                if nid is not None:
-                    node_data = matter_client.nodes.get(nid)
-                    dev = device_registry.add_or_update(nid, node_data) if node_data else device_registry.get_device(nid)
-                    if dev:
-                        bridge.publish_device_state(dev)
+                raw_nid = data.get("node_id")
+                if isinstance(raw_nid, int):
+                    nid = raw_nid
+            elif isinstance(data, (list, tuple)) and len(data) == 3 and isinstance(data[0], int):
+                nid = data[0]
+
+            if nid is not None:
+                node_data = matter_client.nodes.get(nid)
+                dev = device_registry.add_or_update(nid, node_data) if node_data else device_registry.get_device(nid)
+                if dev:
+                    bridge.publish_device_state(dev)
 
         matter_client.subscribe(EVENT_NODE_ADDED, _on_node_change)
         matter_client.subscribe(EVENT_NODE_UPDATED, _on_node_change)
