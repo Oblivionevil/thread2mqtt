@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any
+from typing import Any, Iterable
 
 
 class ClusterId(IntEnum):
@@ -57,6 +58,32 @@ class EntityMapping:
     transform: str | None = None  # "divide_100", "divide_10", "invert"
 
 
+CONTACT_ENTITY = EntityMapping(
+    "binary_sensor", "contact", ClusterId.BOOLEAN_STATE, 0,
+    device_class="door", transform="invert",
+)
+OCCUPANCY_ENTITY = EntityMapping(
+    "binary_sensor", "occupancy", ClusterId.OCCUPANCY_SENSING, 0,
+    device_class="occupancy", transform="occupancy_bitmap",
+)
+TEMPERATURE_ENTITY = EntityMapping(
+    "sensor", "temperature", ClusterId.TEMPERATURE_MEASUREMENT, 0,
+    device_class="temperature", unit="°C", transform="divide_100",
+)
+HUMIDITY_ENTITY = EntityMapping(
+    "sensor", "humidity", ClusterId.HUMIDITY_MEASUREMENT, 0,
+    device_class="humidity", unit="%", transform="divide_100",
+)
+PRESSURE_ENTITY = EntityMapping(
+    "sensor", "pressure", ClusterId.PRESSURE_MEASUREMENT, 0,
+    device_class="pressure", unit="hPa", transform="divide_10",
+)
+ILLUMINANCE_ENTITY = EntityMapping(
+    "sensor", "illuminance", ClusterId.ILLUMINANCE_MEASUREMENT, 0,
+    device_class="illuminance", unit="lx", transform="matter_illuminance_to_lux",
+)
+
+
 # Maps device type → entity mappings
 DEVICE_TYPE_ENTITIES: dict[int, list[EntityMapping]] = {
     DeviceTypeId.ON_OFF_LIGHT: [
@@ -86,34 +113,19 @@ DEVICE_TYPE_ENTITIES: dict[int, list[EntityMapping]] = {
         EntityMapping("switch", "brightness", ClusterId.LEVEL_CONTROL, 0),
     ],
     DeviceTypeId.CONTACT_SENSOR: [
-        EntityMapping(
-            "binary_sensor", "contact", ClusterId.BOOLEAN_STATE, 0,
-            device_class="door", transform="invert",
-        ),
+        CONTACT_ENTITY,
     ],
     DeviceTypeId.OCCUPANCY_SENSOR: [
-        EntityMapping(
-            "binary_sensor", "occupancy", ClusterId.OCCUPANCY_SENSING, 0,
-            device_class="occupancy",
-        ),
+        OCCUPANCY_ENTITY,
     ],
     DeviceTypeId.TEMPERATURE_SENSOR: [
-        EntityMapping(
-            "sensor", "temperature", ClusterId.TEMPERATURE_MEASUREMENT, 0,
-            device_class="temperature", unit="°C", transform="divide_100",
-        ),
+        TEMPERATURE_ENTITY,
     ],
     DeviceTypeId.HUMIDITY_SENSOR: [
-        EntityMapping(
-            "sensor", "humidity", ClusterId.HUMIDITY_MEASUREMENT, 0,
-            device_class="humidity", unit="%", transform="divide_100",
-        ),
+        HUMIDITY_ENTITY,
     ],
     DeviceTypeId.PRESSURE_SENSOR: [
-        EntityMapping(
-            "sensor", "pressure", ClusterId.PRESSURE_MEASUREMENT, 0,
-            device_class="pressure", unit="hPa", transform="divide_10",
-        ),
+        PRESSURE_ENTITY,
     ],
     DeviceTypeId.DOOR_LOCK: [
         EntityMapping("lock", "state", ClusterId.DOOR_LOCK, 0),
@@ -134,12 +146,44 @@ DEVICE_TYPE_ENTITIES: dict[int, list[EntityMapping]] = {
         EntityMapping("climate", "system_mode", ClusterId.THERMOSTAT, 28),
     ],
     DeviceTypeId.LIGHT_SENSOR: [
-        EntityMapping(
-            "sensor", "illuminance", ClusterId.ILLUMINANCE_MEASUREMENT, 0,
-            device_class="illuminance", unit="lx",
-        ),
+        ILLUMINANCE_ENTITY,
     ],
 }
+
+
+# Some devices expose secondary sensor capabilities only via their cluster list,
+# e.g. occupancy sensors that also report illuminance on the same endpoint.
+CLUSTER_ATTRIBUTE_FALLBACKS: tuple[EntityMapping, ...] = (
+    OCCUPANCY_ENTITY,
+    TEMPERATURE_ENTITY,
+    HUMIDITY_ENTITY,
+    PRESSURE_ENTITY,
+    ILLUMINANCE_ENTITY,
+)
+
+
+def infer_mappings_from_attributes(attribute_paths: Iterable[str], endpoint_id: int) -> list[EntityMapping]:
+    """Infer entity mappings directly from available endpoint attributes."""
+    available: set[tuple[int, int]] = set()
+    for path in attribute_paths:
+        parts = str(path).split("/")
+        if len(parts) != 3:
+            continue
+        try:
+            parsed_endpoint = int(parts[0])
+            cluster_id = int(parts[1])
+            attribute_id = int(parts[2])
+        except ValueError:
+            continue
+        if parsed_endpoint != endpoint_id:
+            continue
+        available.add((cluster_id, attribute_id))
+
+    return [
+        mapping
+        for mapping in CLUSTER_ATTRIBUTE_FALLBACKS
+        if (mapping.cluster_id, mapping.attribute_id) in available
+    ]
 
 
 def apply_transform(value: Any, transform: str | None) -> Any:
@@ -152,4 +196,13 @@ def apply_transform(value: Any, transform: str | None) -> Any:
         return round(value / 10, 1)
     if transform == "invert" and isinstance(value, bool):
         return not value
+    if transform == "occupancy_bitmap":
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            return bool(value & 0x01)
+    if transform == "matter_illuminance_to_lux" and isinstance(value, (int, float)):
+        if value <= 0:
+            return 0
+        return round(math.pow(10, (value - 1) / 10000), 2)
     return value
