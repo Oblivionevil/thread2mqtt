@@ -8,6 +8,11 @@ RUN apt-get update \
         python3-pip \
         python3-venv \
         libuv1 \
+        libglib2.0-0 \
+        zlib1g \
+        libjson-c5 \
+        libnl-3-200 \
+        libnl-route-3-200 \
         netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 

@@ -1,4 +1,4 @@
-#!/usr/bin/with-contenv bashio
+#!/command/with-contenv bashio
 set -euo pipefail
 
 MATTER_PORT=5580
@@ -23,9 +23,11 @@ trap cleanup EXIT TERM INT
 
 # Wait for the WebSocket port to be available
 bashio::log.info "Waiting for Matter Server to initialize …"
+READY=0
 for i in $(seq 1 30); do
     if nc -z localhost "${MATTER_PORT}" 2>/dev/null; then
         bashio::log.info "Matter Server is ready"
+        READY=1
         break
     fi
     if ! kill -0 "${MATTER_PID}" 2>/dev/null; then
@@ -34,6 +36,11 @@ for i in $(seq 1 30); do
     fi
     sleep 1
 done
+
+if [ "${READY}" -ne 1 ]; then
+    bashio::log.error "Matter Server did not become ready within 30 seconds"
+    exit 1
+fi
 
 # ── Start the Thread2MQTT bridge ──────────────────────────────────
 bashio::log.info "Starting Thread2MQTT bridge"
