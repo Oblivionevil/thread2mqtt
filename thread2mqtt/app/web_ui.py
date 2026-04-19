@@ -687,7 +687,40 @@ UI_HTML = """<!DOCTYPE html>
         return;
       }
 
+      // Preserve open <details> and update-info panels across re-renders
+      const openDetails = {};
+      const updatePanels = {};
+      document.querySelectorAll('.device-card').forEach(card => {
+        const nodeId = card.querySelector('[id^="name-display-"]')?.id?.replace('name-display-', '');
+        if (!nodeId) return;
+        openDetails[nodeId] = [...card.querySelectorAll('details')].map(d => d.open);
+        const up = card.querySelector(`[id^="update-info-"]`);
+        if (up && up.style.display !== 'none') {
+          updatePanels[nodeId] = up.innerHTML;
+        }
+      });
+
       document.getElementById('device-grid').innerHTML = devices.map(renderDeviceCard).join('');
+
+      // Restore open <details> and update-info panels
+      devices.forEach(device => {
+        const nid = String(device.node_id);
+        if (openDetails[nid]) {
+          const card = document.getElementById(`name-display-${nid}`)?.closest('.device-card');
+          if (card) {
+            [...card.querySelectorAll('details')].forEach((d, i) => {
+              if (openDetails[nid][i]) d.open = true;
+            });
+          }
+        }
+        if (updatePanels[nid]) {
+          const up = document.getElementById(`update-info-${nid}`);
+          if (up) {
+            up.style.display = 'block';
+            up.innerHTML = updatePanels[nid];
+          }
+        }
+      });
     }
 
     async function refreshOverview(showToast = false) {
