@@ -421,9 +421,15 @@ UI_HTML = """<!DOCTYPE html>
             <textarea id="commission-code" rows="4" placeholder="MT:... or manual setup code"></textarea>
           </label>
           <label>
-            Target IP (optional)
-            <input id="commission-ip" type="text" placeholder="192.168.2.168">
+            Target IP (strongly recommended)
+            <input id="commission-ip" type="text" placeholder="e.g. 192.168.2.45 – leave blank ONLY for reliable discovery">
           </label>
+          <p class="hint">
+            The value shown in grey is only an example (placeholder). The field is empty until you type an IP.
+            Without a target IP, the add-on falls back to mDNS discovery and will usually time out for devices that
+            do not actively advertise themselves on Thread. Set <code>matter.commissioning_ip</code> in the add-on
+            options to prefill this field automatically.
+          </p>
           <div class="actions-row">
             <button type="submit">Start commissioning</button>
           </div>
@@ -686,6 +692,16 @@ UI_HTML = """<!DOCTYPE html>
         return;
       }
 
+      if (!ip) {
+        const proceed = window.confirm(
+          'No target IP entered. The add-on will fall back to mDNS discovery, which usually fails for devices '
+          + 'that do not advertise themselves. Continue anyway?'
+        );
+        if (!proceed) {
+          return;
+        }
+      }
+
       try {
         const payload = { code };
         if (ip) {
@@ -693,7 +709,7 @@ UI_HTML = """<!DOCTYPE html>
         }
         await api('api/commission', { method: 'POST', body: JSON.stringify(payload) });
         document.getElementById('commission-code').value = '';
-        setFlash(ip ? 'IP-directed commissioning started.' : 'Commissioning started.');
+        setFlash(ip ? `IP-directed commissioning started (${ip}).` : 'Discovery-based commissioning started.');
       } catch (error) {
         setFlash(error.message, 'error');
       }
