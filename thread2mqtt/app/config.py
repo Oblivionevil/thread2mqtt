@@ -44,6 +44,7 @@ class MatterConfig:
     host: str
     port: int
     listen_address: str | None
+    commissioning_ip: str | None
     storage_path: str
 
     @property
@@ -127,6 +128,7 @@ def load_config(options_path: str | None = None) -> AppConfig:
         host=str(matter_raw.get("host", "127.0.0.1")).strip(),
         port=int(matter_raw.get("port", 5581)),
         listen_address=_optional_string(matter_raw.get("listen_address", "127.0.0.1")),
+        commissioning_ip=_optional_string(matter_raw.get("commissioning_ip")),
         storage_path=str(matter_raw.get("storage_path", "/data/matter")).strip(),
     )
 

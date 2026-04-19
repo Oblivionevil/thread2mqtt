@@ -412,7 +412,8 @@ UI_HTML = """<!DOCTYPE html>
         <p>
           Paste a Matter setup code or QR payload. Leave the target IP empty for normal discovery-based commissioning.
           Set a target IP when the device is reachable but discovery is unreliable; that path needs a manual pairing code
-          or an explicit setup PIN through the API.
+          or an explicit setup PIN through the API. If you configured a default commissioning IP in the add-on options,
+          it will be prefilled here and used automatically for manual pairing codes.
         </p>
         <form id="commission-form">
           <label>
@@ -612,6 +613,11 @@ UI_HTML = """<!DOCTYPE html>
       const overview = await api('api/overview');
       renderStats(overview);
       renderDevices(overview);
+      const commissioningIp = overview.matter?.default_commission_ip || '';
+      const commissionIpInput = document.getElementById('commission-ip');
+      if (commissioningIp && commissionIpInput && !commissionIpInput.value.trim()) {
+        commissionIpInput.value = commissioningIp;
+      }
       if (showToast) {
         setFlash('Dashboard refreshed.');
       }
@@ -828,6 +834,7 @@ class Thread2MqttWebUi:
                 "enabled": self._config.matter.enabled,
                 "connected": matter_connected,
                 "url": self._config.matter.server_url,
+                "default_commission_ip": self._config.matter.commissioning_ip,
                 "server_info": self._matter_client.server_info if self._matter_client else {},
             },
             "devices": [self._serialize_device(device) for device in devices],

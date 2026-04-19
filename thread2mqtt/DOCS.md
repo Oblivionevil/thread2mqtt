@@ -14,6 +14,7 @@ MQTT Discovery, zigbee2mqtt-style topics, and bidirectional control.
 - Loads the active Thread dataset from OTBR (or manual TLVs) and pushes it to
   the Matter server.
 - Commissions on-network Matter devices via MQTT (`permit_join`), including an optional target IP for direct commissioning.
+- Supports a default `matter.commissioning_ip` for manual pairing codes when requests do not include an explicit IP.
 - Publishes device states in zigbee2mqtt-compatible JSON payloads.
 - Supports set commands (on/off, brightness, color temperature).
 - Announces every device into Home Assistant via MQTT Discovery.
@@ -38,6 +39,7 @@ That means the target device must already be advertising as a commissionable Mat
 for example after vendor-app onboarding or when another controller opened a multi-admin window.
 If discovery is unreliable but you know the device IP, `permit_join` and the web UI can target that IP directly.
 That direct-IP path needs either a manual pairing code or an explicit `setup_pin_code`.
+If you always commission the same pending device, you can set `matter.commissioning_ip` in the add-on options so manual codes automatically use direct-IP commissioning.
 
 ## MQTT Topics
 

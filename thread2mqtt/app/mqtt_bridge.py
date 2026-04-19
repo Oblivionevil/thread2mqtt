@@ -84,7 +84,12 @@ class Thread2MqttBridge:
 
     def set_matter_client(self, matter_client: MatterClient, loop: asyncio.AbstractEventLoop) -> CommandRouter:
         """Wire up command routing once the Matter server is connected."""
-        self._command_router = CommandRouter(self._registry, matter_client, loop)
+        self._command_router = CommandRouter(
+            self._registry,
+            matter_client,
+            loop,
+            default_commission_ip=self._config.matter.commissioning_ip,
+        )
         return self._command_router
 
     # ------------------------------------------------------------------

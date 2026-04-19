@@ -10,6 +10,7 @@ into MQTT – giving you a **zigbee2mqtt-style** experience for Thread.
 - Publishes device states as JSON to MQTT and subscribes to `/set` topics for control.
 - Full **Home Assistant MQTT Discovery** for every commissioned device.
 - Commission on-network or multi-admin Matter devices from MQTT via `thread2mqtt/bridge/request/permit_join`.
+- Optional `matter.commissioning_ip` setting to force direct-IP commissioning for manual pairing codes.
 - Uses Matter port `5581` by default to avoid conflicting with Home Assistant's official Matter Server on `5580`.
 - Includes a built-in web UI exposed through Home Assistant ingress for bridge diagnostics, commissioning, and device control.
 
@@ -35,6 +36,7 @@ occupancy sensors, light sensors, door locks, thermostats.
    Publish to: thread2mqtt/bridge/request/permit_join
    Payload:    {"code": "12345678901", "ip": "192.168.1.50"}
    ```
+   You can also set `matter.commissioning_ip` in the add-on options to make manual pairing codes use that IP automatically.
    For factory-new Thread devices that only expose Bluetooth onboarding, use a vendor app or another BLE-capable commissioner first.
 5. The device appears as `thread2mqtt/<friendly_name>` with full HA entities.
 

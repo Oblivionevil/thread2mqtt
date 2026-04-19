@@ -24,10 +24,12 @@ class CommandRouter:
         device_registry: DeviceRegistry,
         matter_client: MatterClient,
         loop: asyncio.AbstractEventLoop,
+        default_commission_ip: str | None = None,
     ) -> None:
         self._registry = device_registry
         self._matter = matter_client
         self._loop = loop
+        self._default_commission_ip = default_commission_ip.strip() if default_commission_ip else None
 
     # -- public (called from paho MQTT thread) --------------------------
 
@@ -80,6 +82,14 @@ class CommandRouter:
         normalized_code = code.strip() if isinstance(code, str) else ""
         normalized_ip = str(ip_addr).strip() if ip_addr else ""
 
+        if not normalized_ip and self._default_commission_ip:
+            if setup_pin_code is not None:
+                normalized_ip = self._default_commission_ip
+                LOGGER.info("Using configured default commissioning IP %s", normalized_ip)
+            elif normalized_code and not normalized_code.upper().startswith("MT:"):
+                normalized_ip = self._default_commission_ip
+                LOGGER.info("Using configured default commissioning IP %s", normalized_ip)
+
         if normalized_ip:
             try:
                 normalized_ip = str(ip_address(normalized_ip))
@@ -120,9 +130,9 @@ class CommandRouter:
 
             if network_only:
                 raise MatterClientError(
-                    "Network-only commissioning failed. The device must already be visible as a "
-                    "commissionable Matter node on your Thread network, for example after vendor-app "
-                    "onboarding or an open multi-admin window."
+                    "Network-only commissioning failed. The request used discovery only. The device must already be visible as a "
+                    "commissionable Matter node on your Thread network, for example after vendor-app onboarding or an open multi-admin window. "
+                    "If discovery is unreliable, resend the request with a target IP or configure matter.commissioning_ip in the add-on options."
                 ) from err
 
             raise

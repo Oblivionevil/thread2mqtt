@@ -72,3 +72,6 @@ configuration:
       listen_address:
         name: Listen address
         description: Optional bind address for the built-in Matter server. Use 127.0.0.1 to keep it local to the host network namespace.
+      commissioning_ip:
+        name: Default commissioning IP
+        description: Optional target IP used for direct Matter commissioning when a manual pairing code is submitted without an explicit IP.

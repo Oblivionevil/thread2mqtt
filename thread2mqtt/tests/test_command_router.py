@@ -60,6 +60,7 @@ def test_commission_wraps_network_only_failures_with_actionable_message() -> Non
     except MatterClientError as err:
         assert "Network-only commissioning failed" in str(err)
         assert "commissionable Matter node" in str(err)
+        assert "target IP" in str(err)
     else:
         raise AssertionError("Expected network-only commissioning failure")
 
@@ -95,3 +96,18 @@ def test_commission_rejects_qr_payload_for_target_ip_without_setup_pin_code() ->
         assert "setup_pin_code" in str(err)
     else:
         raise AssertionError("Expected IP-directed commissioning validation failure")
+
+
+def test_commission_uses_configured_default_ip_for_manual_codes() -> None:
+    matter = FakeMatterClient(bluetooth_enabled=False)
+    router = CommandRouter(
+        device_registry=object(),
+        matter_client=matter,
+        loop=object(),
+        default_commission_ip="192.168.2.168",
+    )
+
+    asyncio.run(router.commission("21259335691"))
+
+    assert matter.calls == []
+    assert matter.on_network_calls == [(58487089, "192.168.2.168")]
