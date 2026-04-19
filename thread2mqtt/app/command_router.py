@@ -29,22 +29,64 @@ class CommandRouter:
 
     # -- public (called from paho MQTT thread) --------------------------
 
-    def handle_set(self, friendly_name: str, payload_str: str) -> None:
+    async def set_device(self, device: Device, payload: dict[str, Any]) -> None:
+        ep = self._first_controllable_ep(device)
+        if ep is None:
+            raise ValueError(f"No controllable endpoint on {device.friendly_name}")
+
+        if "state" in payload:
+            await self._on_off(device.node_id, ep, payload["state"])
+        if "brightness" in payload:
+            await self._brightness(device.node_id, ep, payload["brightness"])
+        if "color_temp" in payload:
+            await self._color_temp(device.node_id, ep, payload["color_temp"])
+
+    async def set_device_by_name(self, friendly_name: str, payload: dict[str, Any]) -> None:
         device = self._registry.get_device_by_name(friendly_name)
         if not device:
-            LOGGER.warning("Set command for unknown device: %s", friendly_name)
-            return
+            raise ValueError(f"Unknown device: {friendly_name}")
+        await self.set_device(device, payload)
+
+    async def set_device_by_node(self, node_id: int, payload: dict[str, Any]) -> None:
+        device = self._registry.get_device(node_id)
+        if not device:
+            raise ValueError(f"Unknown node_id: {node_id}")
+        await self.set_device(device, payload)
+
+    async def refresh_device(self, device: Device) -> None:
+        await self._matter.interview_node(device.node_id)
+
+    async def refresh_device_by_name(self, friendly_name: str) -> None:
+        device = self._registry.get_device_by_name(friendly_name)
+        if not device:
+            raise ValueError(f"Unknown device: {friendly_name}")
+        await self.refresh_device(device)
+
+    async def refresh_device_by_node(self, node_id: int) -> None:
+        device = self._registry.get_device(node_id)
+        if not device:
+            raise ValueError(f"Unknown node_id: {node_id}")
+        await self.refresh_device(device)
+
+    async def commission(self, code: str) -> None:
+        LOGGER.info("Commissioning device with code: %s", code)
+        await self._matter.commission_with_code(code)
+
+    async def remove_node(self, node_id: int) -> None:
+        LOGGER.info("Removing node %d", node_id)
+        await self._matter.remove_node(node_id)
+
+    def handle_set(self, friendly_name: str, payload_str: str) -> None:
         try:
             payload = json.loads(payload_str) if payload_str.strip().startswith("{") else {"state": payload_str}
         except json.JSONDecodeError:
             payload = {"state": payload_str}
-        asyncio.run_coroutine_threadsafe(self._process_set(device, payload), self._loop)
+        future = asyncio.run_coroutine_threadsafe(self.set_device_by_name(friendly_name, payload), self._loop)
+        future.add_done_callback(lambda fut: self._log_future_error(fut, f"Command failed for {friendly_name}"))
 
     def handle_get(self, friendly_name: str) -> None:
-        device = self._registry.get_device_by_name(friendly_name)
-        if not device:
-            return
-        asyncio.run_coroutine_threadsafe(self._process_get(device), self._loop)
+        future = asyncio.run_coroutine_threadsafe(self.refresh_device_by_name(friendly_name), self._loop)
+        future.add_done_callback(lambda fut: self._log_future_error(fut, f"Refresh failed for {friendly_name}"))
 
     def handle_commission(self, payload_str: str) -> None:
         try:
@@ -54,7 +96,8 @@ class CommandRouter:
             code = payload_str.strip()
         if not code:
             return
-        asyncio.run_coroutine_threadsafe(self._process_commission(str(code)), self._loop)
+        future = asyncio.run_coroutine_threadsafe(self.commission(str(code)), self._loop)
+        future.add_done_callback(lambda fut: self._log_future_error(fut, f"Commission failed for {code}"))
 
     def handle_remove(self, payload_str: str) -> None:
         try:
@@ -66,44 +109,8 @@ class CommandRouter:
             except ValueError:
                 LOGGER.warning("Invalid node_id for remove: %s", payload_str)
                 return
-        asyncio.run_coroutine_threadsafe(self._process_remove(node_id), self._loop)
-
-    # -- async processing -----------------------------------------------
-
-    async def _process_set(self, device: Device, payload: dict[str, Any]) -> None:
-        ep = self._first_controllable_ep(device)
-        if ep is None:
-            LOGGER.warning("No controllable endpoint on %s", device.friendly_name)
-            return
-        try:
-            if "state" in payload:
-                await self._on_off(device.node_id, ep, payload["state"])
-            if "brightness" in payload:
-                await self._brightness(device.node_id, ep, payload["brightness"])
-            if "color_temp" in payload:
-                await self._color_temp(device.node_id, ep, payload["color_temp"])
-        except Exception:
-            LOGGER.exception("Command failed for %s", device.friendly_name)
-
-    async def _process_get(self, device: Device) -> None:
-        try:
-            await self._matter.interview_node(device.node_id)
-        except Exception:
-            LOGGER.exception("Get/interview failed for %s", device.friendly_name)
-
-    async def _process_commission(self, code: str) -> None:
-        LOGGER.info("Commissioning device with code: %s", code)
-        try:
-            await self._matter.commission_with_code(code)
-        except Exception:
-            LOGGER.exception("Commission failed for code %s", code)
-
-    async def _process_remove(self, node_id: int) -> None:
-        LOGGER.info("Removing node %d", node_id)
-        try:
-            await self._matter.remove_node(node_id)
-        except Exception:
-            LOGGER.exception("Remove failed for node %d", node_id)
+        future = asyncio.run_coroutine_threadsafe(self.remove_node(node_id), self._loop)
+        future.add_done_callback(lambda fut: self._log_future_error(fut, f"Remove failed for node {node_id}"))
 
     # -- cluster helpers ------------------------------------------------
 
@@ -140,3 +147,10 @@ class CommandRouter:
             if ep_info.entity_mappings:
                 return ep_id
         return None
+
+    @staticmethod
+    def _log_future_error(future: asyncio.Future[Any], context: str) -> None:
+        try:
+            future.result()
+        except Exception as err:
+            LOGGER.error("%s: %s", context, err, exc_info=(type(err), err, err.__traceback__))

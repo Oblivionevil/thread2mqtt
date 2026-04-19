@@ -11,6 +11,7 @@ into MQTT – giving you a **zigbee2mqtt-style** experience for Thread.
 - Full **Home Assistant MQTT Discovery** for every commissioned device.
 - Commission new devices from MQTT via `thread2mqtt/bridge/request/permit_join`.
 - Uses Matter port `5581` by default to avoid conflicting with Home Assistant's official Matter Server on `5580`.
+- Includes a built-in web UI exposed through Home Assistant ingress for bridge diagnostics, commissioning, and device control.
 
 ## Supported device types
 
@@ -22,10 +23,20 @@ occupancy sensors, light sensors, door locks, thermostats.
 
 1. Add this repository to Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**
 2. Install **Thread2MQTT** and configure MQTT + OTBR settings.
-3. Start the add-on – the bridge will appear in Home Assistant via MQTT Discovery.
+3. Start the add-on and click **Open Web UI** to access the built-in dashboard.
 4. Commission a device:
    ```
    Publish to: thread2mqtt/bridge/request/permit_join
    Payload:    {"code": "MT:Y.K9042C00KA0648G00"}
    ```
 5. The device appears as `thread2mqtt/<friendly_name>` with full HA entities.
+
+## Web UI
+
+The web UI is available from the add-on page through Home Assistant ingress.
+It provides:
+
+- bridge health, OTBR reachability, dataset source, and Matter controller status
+- commissioning for new Matter devices with setup codes
+- per-device controls for supported features like on/off, brightness, and color temperature
+- device refresh and remove actions

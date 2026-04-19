@@ -1,4 +1,5 @@
 python-matter-server[server]>=6.0.0,<8.0.0
+aiohttp>=3.10.0,<4.0.0
 websockets>=13.0,<14.0
 requests>=2.32.0,<3.0.0
 paho-mqtt>=2.1.0,<3.0.0

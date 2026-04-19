@@ -49,6 +49,10 @@ class MatterClient:
     def server_info(self) -> dict[str, Any]:
         return dict(self._server_info)
 
+    @property
+    def connected(self) -> bool:
+        return self._ws is not None
+
     # ------------------------------------------------------------------
     # Event subscription
     # ------------------------------------------------------------------

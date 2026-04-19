@@ -17,6 +17,21 @@ MQTT Discovery, zigbee2mqtt-style topics, and bidirectional control.
 - Publishes device states in zigbee2mqtt-compatible JSON payloads.
 - Supports set commands (on/off, brightness, color temperature).
 - Announces every device into Home Assistant via MQTT Discovery.
+- Exposes a built-in web UI through Home Assistant ingress.
+
+## Web UI
+
+After starting the add-on, use **Open Web UI** in the Home Assistant add-on page.
+
+The web UI includes:
+
+- bridge diagnostics and Matter runtime status
+- Matter commissioning with pairing codes
+- device cards with live state, on/off control, brightness, color temperature
+- refresh and remove actions for commissioned nodes
+
+Ingress is enabled for the add-on and the web server listens on internal port `8099`.
+The UI only accepts local Home Assistant ingress traffic and localhost access.
 
 ## MQTT Topics
 

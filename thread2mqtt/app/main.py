@@ -18,6 +18,7 @@ from .matter_client import (
 )
 from .mqtt_bridge import Thread2MqttBridge
 from .otbr_client import OtbrClient
+from .web_ui import Thread2MqttWebUi
 
 LOG_LEVEL_MAP = {
     "TRACE": logging.DEBUG,
@@ -56,14 +57,18 @@ async def async_main() -> int:
         device_registry=device_registry,
         loop=loop,
     )
+    web_ui = Thread2MqttWebUi(config=config, bridge=bridge, device_registry=device_registry)
 
     # MQTT runs in its own thread (paho loop_start)
     bridge.start()
+    await web_ui.start()
 
     matter_client: MatterClient | None = None
 
     if config.matter.enabled:
         matter_client = MatterClient(url=config.matter.server_url)
+        command_router = bridge.set_matter_client(matter_client, loop)
+        web_ui.set_runtime(matter_client, command_router)
 
         # -- event callbacks (called from the asyncio listener task) ----
 
@@ -88,7 +93,8 @@ async def async_main() -> int:
             if isinstance(data, dict):
                 nid = data.get("node_id")
                 if nid is not None:
-                    dev = device_registry.get_device(nid)
+                    node_data = matter_client.nodes.get(nid)
+                    dev = device_registry.add_or_update(nid, node_data) if node_data else device_registry.get_device(nid)
                     if dev:
                         bridge.publish_device_state(dev)
 
@@ -153,6 +159,7 @@ async def async_main() -> int:
     # -- cleanup --------------------------------------------------------
     if matter_client:
         await matter_client.disconnect()
+    await web_ui.stop()
     bridge.stop()
     logger.info("Thread2MQTT stopped")
     return 0

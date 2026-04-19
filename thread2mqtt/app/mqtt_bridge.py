@@ -47,6 +47,12 @@ class Thread2MqttBridge:
         self._last_snapshot: dict[str, Any] = {}
         self._configure_client()
 
+    @property
+    def last_snapshot(self) -> dict[str, Any]:
+        snapshot = dict(self._last_snapshot)
+        snapshot["devices"] = len(self._registry.devices)
+        return snapshot
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -76,9 +82,10 @@ class Thread2MqttBridge:
         self._client.loop_stop()
         self._client.disconnect()
 
-    def set_matter_client(self, matter_client: MatterClient, loop: asyncio.AbstractEventLoop) -> None:
+    def set_matter_client(self, matter_client: MatterClient, loop: asyncio.AbstractEventLoop) -> CommandRouter:
         """Wire up command routing once the Matter server is connected."""
         self._command_router = CommandRouter(self._registry, matter_client, loop)
+        return self._command_router
 
     # ------------------------------------------------------------------
     # Bridge-level publishing
