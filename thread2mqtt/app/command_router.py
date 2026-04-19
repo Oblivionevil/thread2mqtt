@@ -34,15 +34,20 @@ class CommandRouter:
     # -- public (called from paho MQTT thread) --------------------------
 
     async def set_device(self, device: Device, payload: dict[str, Any]) -> None:
-        ep = self._first_controllable_ep(device)
-        if ep is None:
-            raise ValueError(f"No controllable endpoint on {device.friendly_name}")
-
         if "state" in payload:
+            ep = device.get_endpoint_for_command("state")
+            if ep is None:
+                raise ValueError(f"No endpoint supporting state commands on {device.friendly_name}")
             await self._on_off(device.node_id, ep, payload["state"])
         if "brightness" in payload:
+            ep = device.get_endpoint_for_command("brightness")
+            if ep is None:
+                raise ValueError(f"No endpoint supporting brightness commands on {device.friendly_name}")
             await self._brightness(device.node_id, ep, payload["brightness"])
         if "color_temp" in payload:
+            ep = device.get_endpoint_for_command("color_temp")
+            if ep is None:
+                raise ValueError(f"No endpoint supporting color temperature commands on {device.friendly_name}")
             await self._color_temp(device.node_id, ep, payload["color_temp"])
 
     async def set_device_by_name(self, friendly_name: str, payload: dict[str, Any]) -> None:
@@ -244,13 +249,6 @@ class CommandRouter:
         )
 
     # -- util -----------------------------------------------------------
-
-    @staticmethod
-    def _first_controllable_ep(device: Device) -> int | None:
-        for ep_id, ep_info in device.endpoints.items():
-            if ep_info.entity_mappings:
-                return ep_id
-        return None
 
     @staticmethod
     def _log_future_error(future: asyncio.Future[Any], context: str) -> None:

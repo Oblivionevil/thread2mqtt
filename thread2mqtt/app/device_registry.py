@@ -13,6 +13,7 @@ from .clusters import (
     DEVICE_TYPE_ENTITIES,
     EntityMapping,
     apply_transform,
+    infer_mappings_from_attributes,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -26,6 +27,50 @@ ATTR_PRODUCT_ID = f"0/{_BI}/4"
 ATTR_NODE_LABEL = f"0/{_BI}/5"
 ATTR_SERIAL_NUMBER = f"0/{_BI}/15"
 ATTR_UNIQUE_ID = f"0/{_BI}/17"
+
+_COMMAND_PLATFORMS: dict[str, set[str]] = {
+    "state": {"light", "switch"},
+    "brightness": {"light", "switch"},
+    "color_temp": {"light"},
+}
+
+
+def _mapping_identity(mapping: EntityMapping) -> tuple[str, str, int, int]:
+    return (
+        mapping.ha_platform,
+        mapping.attribute_key,
+        mapping.cluster_id,
+        mapping.attribute_id,
+    )
+
+
+def _extract_device_type_id(item: Any) -> int | None:
+    if isinstance(item, bool):
+        return None
+    if isinstance(item, int):
+        return item
+    if isinstance(item, dict):
+        for key in ("deviceType", "device_type", "type", "id", "value"):
+            value = item.get(key)
+            if isinstance(value, bool):
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    for attr_name in ("deviceType", "device_type", "type", "id", "value"):
+        if not hasattr(item, attr_name):
+            continue
+        value = getattr(item, attr_name)
+        if isinstance(value, bool):
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
+    return None
 
 
 class EndpointInfo:
@@ -113,6 +158,28 @@ class Device:
                     state[mapping.attribute_key] = value
         return state
 
+    def get_capabilities(self) -> set[str]:
+        """Return supported state keys derived from endpoint mappings."""
+        return {
+            mapping.attribute_key
+            for endpoint in self.endpoints.values()
+            for mapping in endpoint.entity_mappings
+        }
+
+    def get_endpoint_for_command(self, attribute_key: str) -> int | None:
+        """Return an endpoint that supports a mutable command key."""
+        supported_platforms = _COMMAND_PLATFORMS.get(attribute_key)
+        if not supported_platforms:
+            return None
+
+        for ep_id, ep_info in self.endpoints.items():
+            for mapping in ep_info.entity_mappings:
+                if mapping.attribute_key != attribute_key:
+                    continue
+                if mapping.ha_platform in supported_platforms:
+                    return ep_id
+        return None
+
     # -- update ---------------------------------------------------------
 
     def update(self, node_data: dict[str, Any]) -> None:
@@ -137,16 +204,28 @@ class Device:
                 continue  # root endpoint – metadata only
             dt_raw = attrs.get(f"{ep_id}/{ClusterId.DESCRIPTOR}/0", [])
             dt_ids: list[int] = []
-            if isinstance(dt_raw, list):
-                for item in dt_raw:
-                    if isinstance(item, dict):
-                        dt_ids.append(item.get("deviceType", item.get("type", 0)))
-                    elif isinstance(item, int):
-                        dt_ids.append(item)
+            dt_items = dt_raw if isinstance(dt_raw, list) else [dt_raw]
+            for item in dt_items:
+                dt_id = _extract_device_type_id(item)
+                if dt_id is not None:
+                    dt_ids.append(dt_id)
 
             mappings: list[EntityMapping] = []
+            seen_mappings: set[tuple[str, str, int, int]] = set()
             for dt_id in dt_ids:
-                mappings.extend(DEVICE_TYPE_ENTITIES.get(dt_id, []))
+                for mapping in DEVICE_TYPE_ENTITIES.get(dt_id, []):
+                    identity = _mapping_identity(mapping)
+                    if identity in seen_mappings:
+                        continue
+                    seen_mappings.add(identity)
+                    mappings.append(mapping)
+
+            for mapping in infer_mappings_from_attributes(attrs.keys(), ep_id):
+                identity = _mapping_identity(mapping)
+                if identity in seen_mappings:
+                    continue
+                seen_mappings.add(identity)
+                mappings.append(mapping)
 
             if mappings:
                 self.endpoints[ep_id] = EndpointInfo(ep_id, dt_ids, mappings)
