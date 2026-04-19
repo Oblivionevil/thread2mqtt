@@ -410,25 +410,31 @@ UI_HTML = """<!DOCTYPE html>
       <section class="panel commission-panel">
         <h2>Commission device</h2>
         <p>
-          Paste a Matter setup code or QR payload. Leave the target IP empty for normal discovery-based commissioning.
-          Set a target IP when the device is reachable but discovery is unreliable; that path needs a manual pairing code
-          or an explicit setup PIN through the API. If you configured a default commissioning IP in the add-on options,
-          it will be prefilled here and used automatically for manual pairing codes.
+          <strong>Important:</strong> this add-on has <em>no Bluetooth</em>. That means a brand-new Matter device
+          (only the factory sticker code) cannot be onboarded here &mdash; initial commissioning needs BLE. Use the
+          Home Assistant Companion app, the Google/Apple/Samsung app, or another BLE-capable controller for the
+          first pairing, then use <em>Share device / multi-admin</em> to get an 11-digit share code and paste that
+          here. The sticker code only works if the device still has an open commissioning window.
+        </p>
+        <p>
+          Leave the target IP empty for normal discovery-based commissioning (mDNS on the fabric). Set a target IP
+          only when you know the device's own IP (for Thread devices that is an IPv6 <code>fd&hellip;</code>
+          address from the Border Router &mdash; <strong>not</strong> the Home Assistant host IP). The IP path needs
+          a manual pairing code or an explicit setup PIN.
         </p>
         <form id="commission-form">
           <label>
             Pairing code
-            <textarea id="commission-code" rows="4" placeholder="MT:... or manual setup code"></textarea>
+            <textarea id="commission-code" rows="4" placeholder="MT:... or 11/21-digit manual code (share code preferred)"></textarea>
           </label>
           <label>
-            Target IP (strongly recommended)
-            <input id="commission-ip" type="text" placeholder="e.g. 192.168.2.45 – leave blank ONLY for reliable discovery">
+            Target IP (optional, device IP only)
+            <input id="commission-ip" type="text" placeholder="e.g. fd12:3456::abcd for Thread, or LAN IPv4 of the device">
           </label>
           <p class="hint">
-            The value shown in grey is only an example (placeholder). The field is empty until you type an IP.
-            Without a target IP, the add-on falls back to mDNS discovery and will usually time out for devices that
-            do not actively advertise themselves on Thread. Set <code>matter.commissioning_ip</code> in the add-on
-            options to prefill this field automatically.
+            The grey text is only a placeholder. Do <strong>not</strong> put the Home Assistant host IP here &mdash;
+            that will fail with &ldquo;Invalid PASE parameter&rdquo;. Leave the field empty unless you truly know
+            the device's own address.
           </p>
           <div class="actions-row">
             <button type="submit">Start commissioning</button>
