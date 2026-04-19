@@ -432,6 +432,7 @@ UI_HTML = """<!DOCTYPE html>
       <h1>Thread fabric dashboard</h1>
       <p>
         Inspect the bridge, commission on-network Matter devices, and operate supported nodes from the same runtime that serves MQTT.
+        <br><span class="subtle" id="ui-version"></span>
       </p>
       <div class="toolbar">
         <button type="button" onclick="refreshOverview(true)">Refresh view</button>
@@ -727,6 +728,10 @@ UI_HTML = """<!DOCTYPE html>
       const overview = await api('api/overview');
       renderStats(overview);
       renderDevices(overview);
+      const ver = overview.ui?.version;
+      if (ver) {
+        document.getElementById('ui-version').textContent = `Add-on version: ${ver}`;
+      }
       const commissioningIp = overview.matter?.default_commission_ip || '';
       const commissionIpInput = document.getElementById('commission-ip');
       if (commissioningIp && commissionIpInput && !commissionIpInput.value.trim()) {
@@ -978,7 +983,11 @@ class Thread2MqttWebUi:
             self._runner = None
 
     async def _handle_index(self, _request: web.Request) -> web.Response:
-        return web.Response(text=UI_HTML, content_type="text/html")
+        return web.Response(
+            text=UI_HTML,
+            content_type="text/html",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+        )
 
     async def _handle_health(self, _request: web.Request) -> web.Response:
         return web.json_response({"ok": True, "version": __version__})
