@@ -111,3 +111,13 @@ def test_commission_uses_configured_default_ip_for_manual_codes() -> None:
 
     assert matter.calls == []
     assert matter.on_network_calls == [(58487089, "192.168.2.168")]
+
+
+def test_commission_without_target_ip_keeps_discovery_path() -> None:
+    matter = FakeMatterClient(bluetooth_enabled=False)
+    router = CommandRouter(device_registry=object(), matter_client=matter, loop=object())
+
+    asyncio.run(router.commission("21259335691"))
+
+    assert matter.calls == [("21259335691", True)]
+    assert matter.on_network_calls == []

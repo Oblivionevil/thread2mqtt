@@ -90,6 +90,9 @@ class CommandRouter:
                 normalized_ip = self._default_commission_ip
                 LOGGER.info("Using configured default commissioning IP %s", normalized_ip)
 
+        if not normalized_ip and normalized_code and not normalized_code.upper().startswith("MT:"):
+            LOGGER.info("No target IP configured for manual pairing code; using discovery-based commissioning")
+
         if normalized_ip:
             try:
                 normalized_ip = str(ip_address(normalized_ip))

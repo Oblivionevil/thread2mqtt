@@ -500,6 +500,7 @@ UI_HTML = """<!DOCTYPE html>
         ['Matter connected', matter.connected ? 'Yes' : 'No'],
         ['Thread dataset in Matter', serverInfo.thread_credentials_set ? 'Loaded' : 'Missing'],
         ['Commissioning mode', serverInfo.bluetooth_enabled ? 'Bluetooth + network' : 'Network only'],
+        ['Default commission IP', matter.default_commission_ip || 'Not set'],
       ];
 
       if (bridge.last_error) {
@@ -692,7 +693,6 @@ UI_HTML = """<!DOCTYPE html>
         }
         await api('api/commission', { method: 'POST', body: JSON.stringify(payload) });
         document.getElementById('commission-code').value = '';
-        document.getElementById('commission-ip').value = '';
         setFlash(ip ? 'IP-directed commissioning started.' : 'Commissioning started.');
       } catch (error) {
         setFlash(error.message, 'error');

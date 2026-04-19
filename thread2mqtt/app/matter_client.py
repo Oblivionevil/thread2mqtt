@@ -245,6 +245,8 @@ class MatterClient:
             nid = event_data.get("node_id")
             if nid is not None:
                 self._nodes[nid] = event_data
+        elif event_type == EVENT_SERVER_INFO_UPDATED and isinstance(event_data, dict):
+            self._server_info = dict(event_data)
         elif event_type == EVENT_NODE_REMOVED:
             nid = event_data if isinstance(event_data, int) else None
             if nid is not None:
