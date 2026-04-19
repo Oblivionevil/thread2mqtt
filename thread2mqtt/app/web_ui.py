@@ -835,7 +835,7 @@ UI_HTML = """<!DOCTYPE html>
       panel.style.display = 'block';
       panel.innerHTML = '<div class="update-detail">Checking for updates…</div>';
       try {
-        const result = await api(`api/device/${nodeId}/check-update`, { method: 'POST', body: '{}' });
+        const result = await api(`api/device/${nodeId}/command`, { method: 'POST', body: JSON.stringify({ action: 'check_update' }) });
         if (result.update_available && result.update_info) {
           const info = result.update_info;
           const swVersion = info.software_version != null ? info.software_version : '';
@@ -868,7 +868,7 @@ UI_HTML = """<!DOCTYPE html>
       const panel = document.getElementById(`update-info-${nodeId}`);
       panel.innerHTML = '<div class="update-detail">Starting update… This may take several minutes.</div>';
       try {
-        await api(`api/device/${nodeId}/update`, { method: 'POST', body: JSON.stringify({ software_version: softwareVersion }) });
+        await api(`api/device/${nodeId}/command`, { method: 'POST', body: JSON.stringify({ action: 'update', software_version: softwareVersion }) });
         panel.innerHTML = '<div class="update-detail" style="color:var(--success);">Update started. The device will restart when complete.</div>';
         setFlash(`Update started on node ${nodeId}.`);
       } catch (error) {
@@ -1024,6 +1024,25 @@ class Thread2MqttWebUi:
         payload = await self._read_json(request)
         node_id = int(request.match_info["node_id"])
         router = self._require_command_router()
+
+        # Handle special commands routed through the same endpoint
+        action = payload.get("action")
+        if action == "check_update":
+            try:
+                result = await self._matter_client.check_node_update(node_id)
+            except MatterClientError as err:
+                raise self._json_error(web.HTTPBadRequest, str(err)) from err
+            return web.json_response({"ok": True, "update_available": result is not None, "update_info": result})
+        if action == "update":
+            sw = payload.get("software_version")
+            if sw is None:
+                raise self._json_error(web.HTTPBadRequest, "Missing 'software_version'")
+            try:
+                result = await self._matter_client.update_node(node_id, sw)
+            except MatterClientError as err:
+                raise self._json_error(web.HTTPBadRequest, str(err)) from err
+            return web.json_response({"ok": True, "result": result})
+
         try:
             await router.set_device_by_node(node_id, payload)
         except (MatterClientError, ValueError) as err:
