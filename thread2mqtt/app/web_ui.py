@@ -493,6 +493,7 @@ UI_HTML = """<!DOCTYPE html>
 
   <script>
     const POLL_INTERVAL_MS = 5000;
+    let _updateBusy = false;
 
     function escapeHtml(value) {
       return String(value)
@@ -725,6 +726,7 @@ UI_HTML = """<!DOCTYPE html>
     }
 
     async function refreshOverview(showToast = false) {
+      if (_updateBusy) return;
       const overview = await api('api/overview');
       renderStats(overview);
       renderDevices(overview);
@@ -831,11 +833,19 @@ UI_HTML = """<!DOCTYPE html>
     }
 
     async function checkUpdate(nodeId) {
+      console.log('[thread2mqtt] checkUpdate called for node', nodeId);
+      _updateBusy = true;
       const panel = document.getElementById(`update-info-${nodeId}`);
+      if (!panel) {
+        console.error('[thread2mqtt] update-info panel not found for node', nodeId);
+        _updateBusy = false;
+        return;
+      }
       panel.style.display = 'block';
       panel.innerHTML = '<div class="update-detail">Checking for updates…</div>';
       try {
         const result = await api(`api/device/${nodeId}/command`, { method: 'POST', body: JSON.stringify({ action: 'check_update' }) });
+        console.log('[thread2mqtt] check_update result:', result);
         if (result.update_available && result.update_info) {
           const info = result.update_info;
           const swVersion = info.software_version != null ? info.software_version : '';
@@ -853,12 +863,15 @@ UI_HTML = """<!DOCTYPE html>
         } else {
           panel.innerHTML = '<div class="update-detail">No update available. Device is up to date.</div>';
           setFlash(`Node ${nodeId} is up to date.`);
-          window.setTimeout(() => { panel.style.display = 'none'; }, 4000);
+          window.setTimeout(() => { panel.style.display = 'none'; _updateBusy = false; }, 4000);
+          return;
         }
       } catch (error) {
+        console.error('[thread2mqtt] checkUpdate error:', error);
         panel.innerHTML = `<div class="update-detail" style="color:var(--danger);">${escapeHtml(error.message)}</div>`;
         setFlash(error.message, 'error');
       }
+      _updateBusy = false;
     }
 
     async function applyUpdate(nodeId, softwareVersion) {
