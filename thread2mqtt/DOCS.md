@@ -13,7 +13,7 @@ MQTT Discovery, zigbee2mqtt-style topics, and bidirectional control.
 - Runs a built-in python-matter-server instance with its own fabric.
 - Loads the active Thread dataset from OTBR (or manual TLVs) and pushes it to
   the Matter server.
-- Commissions Matter devices via MQTT (`permit_join`).
+- Commissions on-network Matter devices via MQTT (`permit_join`).
 - Publishes device states in zigbee2mqtt-compatible JSON payloads.
 - Supports set commands (on/off, brightness, color temperature).
 - Announces every device into Home Assistant via MQTT Discovery.
@@ -26,12 +26,16 @@ After starting the add-on, use **Open Web UI** in the Home Assistant add-on page
 The web UI includes:
 
 - bridge diagnostics and Matter runtime status
-- Matter commissioning with pairing codes
+- on-network Matter commissioning with pairing codes
 - device cards with live state, on/off control, brightness, color temperature
 - refresh and remove actions for commissioned nodes
 
 Ingress is enabled for the add-on and the web server listens on internal port `8099`.
 The UI only accepts local Home Assistant ingress traffic and localhost access.
+
+Thread2MQTT commissions from the Home Assistant host without relying on Bluetooth.
+That means the target device must already be advertising as a commissionable Matter node on the Thread network,
+for example after vendor-app onboarding or when another controller opened a multi-admin window.
 
 ## MQTT Topics
 

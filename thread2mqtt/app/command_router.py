@@ -9,7 +9,7 @@ from typing import Any
 
 from .clusters import ClusterId
 from .device_registry import Device, DeviceRegistry
-from .matter_client import MatterClient
+from .matter_client import MatterClient, MatterClientError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -70,7 +70,25 @@ class CommandRouter:
 
     async def commission(self, code: str) -> None:
         LOGGER.info("Commissioning device with code: %s", code)
-        await self._matter.commission_with_code(code)
+        bluetooth_enabled = bool(self._matter.server_info.get("bluetooth_enabled"))
+        network_only = not bluetooth_enabled
+
+        try:
+            await self._matter.commission_with_code(code, network_only=network_only)
+        except MatterClientError as err:
+            if not network_only and "Bluetooth commissioning is not available" in str(err):
+                LOGGER.info("Retrying commissioning in network-only mode")
+                await self._matter.commission_with_code(code, network_only=True)
+                return
+
+            if network_only:
+                raise MatterClientError(
+                    "Network-only commissioning failed. The device must already be visible as a "
+                    "commissionable Matter node on your Thread network, for example after vendor-app "
+                    "onboarding or an open multi-admin window."
+                ) from err
+
+            raise
 
     async def remove_node(self, node_id: int) -> None:
         LOGGER.info("Removing node %d", node_id)

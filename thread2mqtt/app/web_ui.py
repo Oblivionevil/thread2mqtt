@@ -1,4 +1,4 @@
-"""Web UI for Thread2MQTT."""
+"""Built-in web UI for Thread2MQTT."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from . import __version__
 from .command_router import CommandRouter
 from .config import AppConfig
 from .device_registry import Device, DeviceRegistry
-from .matter_client import MatterClient
+from .matter_client import MatterClient, MatterClientError
 from .mqtt_bridge import Thread2MqttBridge
 
 
@@ -30,19 +30,19 @@ UI_HTML = """<!DOCTYPE html>
   <title>Thread2MQTT</title>
   <style>
     :root {
-      --bg: #0e1516;
-      --panel: rgba(18, 28, 30, 0.86);
-      --panel-strong: rgba(27, 41, 44, 0.94);
-      --line: rgba(153, 201, 193, 0.18);
-      --text: #edf7f4;
-      --muted: #9bb7b1;
-      --accent: #ff8a3d;
-      --accent-soft: rgba(255, 138, 61, 0.16);
-      --success: #4ed0a8;
-      --danger: #ff6b6b;
-      --shadow: 0 28px 70px rgba(0, 0, 0, 0.28);
+      --bg: #0d1617;
+      --panel: rgba(17, 29, 31, 0.88);
+      --panel-strong: rgba(25, 40, 43, 0.95);
+      --line: rgba(166, 214, 205, 0.15);
+      --text: #eef7f5;
+      --muted: #9db7b2;
+      --accent: #ff8c40;
+      --accent-soft: rgba(255, 140, 64, 0.16);
+      --success: #55cea4;
+      --danger: #ff7676;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
       --radius: 22px;
-      --font: "Avenir Next", "Segoe UI Variable", "IBM Plex Sans", "Trebuchet MS", sans-serif;
+      --font: "Avenir Next", "Segoe UI Variable", "IBM Plex Sans", sans-serif;
     }
 
     * { box-sizing: border-box; }
@@ -53,9 +53,9 @@ UI_HTML = """<!DOCTYPE html>
       font-family: var(--font);
       color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(255, 138, 61, 0.22), transparent 32%),
-        radial-gradient(circle at top right, rgba(78, 208, 168, 0.16), transparent 24%),
-        linear-gradient(180deg, #102022 0%, #0a1112 100%);
+        radial-gradient(circle at top left, rgba(255, 140, 64, 0.22), transparent 28%),
+        radial-gradient(circle at top right, rgba(85, 206, 164, 0.14), transparent 22%),
+        linear-gradient(180deg, #102022 0%, #091011 100%);
     }
 
     body::before {
@@ -64,60 +64,70 @@ UI_HTML = """<!DOCTYPE html>
       inset: 0;
       pointer-events: none;
       background-image:
-        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-      background-size: 32px 32px;
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 30px 30px;
       mask-image: linear-gradient(180deg, rgba(0,0,0,0.45), transparent 90%);
     }
 
     .shell {
-      width: min(1400px, calc(100vw - 32px));
+      width: min(1360px, calc(100vw - 28px));
       margin: 0 auto;
-      padding: 24px 0 40px;
+      padding: 20px 0 36px;
+    }
+
+    .hero,
+    .panel,
+    .device-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
     }
 
     .hero {
-      position: relative;
-      overflow: hidden;
       padding: 28px;
-      border: 1px solid var(--line);
-      border-radius: calc(var(--radius) + 6px);
       background:
-        linear-gradient(135deg, rgba(255, 138, 61, 0.12), transparent 38%),
-        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
+        linear-gradient(135deg, var(--accent-soft), transparent 40%),
+        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
         var(--panel-strong);
-      box-shadow: var(--shadow);
     }
 
     .eyebrow {
       margin-bottom: 10px;
       color: var(--accent);
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
       font-size: 12px;
       font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
     }
 
     h1 {
       margin: 0;
-      font-size: clamp(34px, 5vw, 58px);
-      line-height: 0.95;
-      letter-spacing: -0.04em;
       max-width: 10ch;
+      font-size: clamp(34px, 6vw, 58px);
+      line-height: 0.94;
+      letter-spacing: -0.045em;
     }
 
-    .hero p {
-      max-width: 64ch;
-      margin: 14px 0 20px;
+    .hero p,
+    .panel p,
+    .subtle {
       color: var(--muted);
-      font-size: 16px;
       line-height: 1.6;
     }
 
-    .hero-actions,
+    .hero p {
+      margin: 14px 0 20px;
+      max-width: 64ch;
+      font-size: 16px;
+    }
+
+    .toolbar,
     .actions-row,
     .device-actions,
-    .command-row {
+    .range-actions {
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
@@ -125,39 +135,26 @@ UI_HTML = """<!DOCTYPE html>
 
     .layout {
       display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
       gap: 18px;
       margin-top: 18px;
-      grid-template-columns: repeat(12, minmax(0, 1fr));
     }
 
     .panel {
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--panel);
-      box-shadow: var(--shadow);
       padding: 22px;
-      backdrop-filter: blur(10px);
-    }
-
-    .panel h2,
-    .device-header h3 {
-      margin: 0 0 6px;
-      font-size: 22px;
-      letter-spacing: -0.03em;
-    }
-
-    .panel p,
-    .subtle {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.6;
     }
 
     .bridge-panel { grid-column: span 7; }
     .commission-panel { grid-column: span 5; }
     .devices-panel { grid-column: 1 / -1; }
 
-    .stat-grid {
+    h2,
+    h3 {
+      margin: 0 0 8px;
+      letter-spacing: -0.03em;
+    }
+
+    .stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 14px;
@@ -167,15 +164,15 @@ UI_HTML = """<!DOCTYPE html>
     .stat {
       padding: 16px;
       border-radius: 18px;
-      border: 1px solid var(--line);
+      border: 1px solid rgba(255,255,255,0.06);
       background: rgba(255,255,255,0.03);
     }
 
     .stat-label {
       color: var(--muted);
       font-size: 12px;
-      letter-spacing: 0.1em;
       text-transform: uppercase;
+      letter-spacing: 0.1em;
       margin-bottom: 8px;
     }
 
@@ -195,33 +192,33 @@ UI_HTML = """<!DOCTYPE html>
     label {
       display: grid;
       gap: 8px;
-      font-size: 13px;
       color: var(--muted);
+      font-size: 12px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
 
     input,
-    button,
-    textarea {
+    textarea,
+    button {
       font: inherit;
     }
 
     input,
     textarea {
       width: 100%;
+      padding: 14px 15px;
+      color: var(--text);
+      border-radius: 16px;
       border: 1px solid rgba(255,255,255,0.1);
       background: rgba(7, 13, 14, 0.72);
-      color: var(--text);
-      padding: 14px 15px;
-      border-radius: 16px;
       outline: none;
     }
 
     input:focus,
     textarea:focus {
-      border-color: rgba(255, 138, 61, 0.65);
-      box-shadow: 0 0 0 4px rgba(255, 138, 61, 0.16);
+      border-color: rgba(255, 140, 64, 0.7);
+      box-shadow: 0 0 0 4px rgba(255, 140, 64, 0.16);
     }
 
     button {
@@ -229,12 +226,11 @@ UI_HTML = """<!DOCTYPE html>
       border-radius: 999px;
       padding: 12px 18px;
       cursor: pointer;
-      color: #15110c;
-      background: linear-gradient(135deg, #ffb36b, var(--accent));
       font-weight: 700;
-      letter-spacing: 0.01em;
-      transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
-      box-shadow: 0 14px 28px rgba(255, 138, 61, 0.25);
+      color: #1b140d;
+      background: linear-gradient(135deg, #ffb56c, var(--accent));
+      box-shadow: 0 14px 26px rgba(255, 140, 64, 0.24);
+      transition: transform 0.16s ease, opacity 0.16s ease;
     }
 
     button:hover { transform: translateY(-1px); }
@@ -243,14 +239,14 @@ UI_HTML = """<!DOCTYPE html>
     .ghost {
       color: var(--text);
       background: rgba(255,255,255,0.05);
-      box-shadow: none;
       border: 1px solid var(--line);
+      box-shadow: none;
     }
 
     .danger {
       color: white;
-      background: linear-gradient(135deg, #ff8f8f, var(--danger));
-      box-shadow: 0 14px 28px rgba(255, 107, 107, 0.22);
+      background: linear-gradient(135deg, #ff9797, var(--danger));
+      box-shadow: 0 14px 26px rgba(255, 118, 118, 0.22);
     }
 
     .flash {
@@ -259,81 +255,73 @@ UI_HTML = """<!DOCTYPE html>
       padding: 14px 16px;
       border-radius: 16px;
       border: 1px solid var(--line);
-      background: rgba(78, 208, 168, 0.12);
-    }
-
-    .flash.error {
-      display: block;
-      background: rgba(255, 107, 107, 0.12);
-      border-color: rgba(255, 107, 107, 0.4);
     }
 
     .flash.success {
       display: block;
-      background: rgba(78, 208, 168, 0.12);
-      border-color: rgba(78, 208, 168, 0.35);
+      background: rgba(85, 206, 164, 0.12);
+      border-color: rgba(85, 206, 164, 0.35);
+    }
+
+    .flash.error {
+      display: block;
+      background: rgba(255, 118, 118, 0.12);
+      border-color: rgba(255, 118, 118, 0.4);
     }
 
     .device-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 16px;
-      margin-top: 20px;
+      margin-top: 18px;
     }
 
     .device-card {
-      border: 1px solid var(--line);
-      border-radius: 20px;
       padding: 18px;
-      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+        var(--panel);
     }
 
-    .device-header {
+    .device-head {
       display: flex;
-      align-items: start;
+      align-items: flex-start;
       justify-content: space-between;
       gap: 12px;
       margin-bottom: 14px;
     }
 
-    .pill-row,
-    .state-row {
+    .pills,
+    .state-chips {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin: 12px 0 0;
+      margin-top: 12px;
     }
 
-    .pill {
+    .pill,
+    .chip {
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      font-size: 12px;
       border-radius: 999px;
       padding: 7px 10px;
-      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.05);
       color: var(--muted);
-      font-size: 12px;
-      border: 1px solid rgba(255,255,255,0.05);
     }
 
     .status-online {
       color: #052118;
-      background: rgba(78, 208, 168, 0.95);
+      background: rgba(85, 206, 164, 0.95);
       border-color: transparent;
     }
 
     .status-offline {
       color: white;
-      background: rgba(255, 107, 107, 0.85);
+      background: rgba(255, 118, 118, 0.84);
       border-color: transparent;
-    }
-
-    .state-chip {
-      font-size: 12px;
-      border-radius: 14px;
-      padding: 8px 10px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255,255,255,0.07);
     }
 
     .range-wrap {
@@ -363,18 +351,18 @@ UI_HTML = """<!DOCTYPE html>
       margin: 10px 0 0;
       padding: 14px;
       border-radius: 16px;
-      background: rgba(4, 8, 9, 0.7);
+      background: rgba(4, 8, 9, 0.74);
       overflow: auto;
       font-size: 12px;
       border: 1px solid rgba(255,255,255,0.05);
     }
 
     .empty {
-      padding: 22px;
-      border-radius: 18px;
-      border: 1px dashed rgba(255,255,255,0.14);
+      padding: 24px;
       color: var(--muted);
       text-align: center;
+      border-radius: 18px;
+      border: 1px dashed rgba(255,255,255,0.12);
       background: rgba(255,255,255,0.02);
     }
 
@@ -386,12 +374,12 @@ UI_HTML = """<!DOCTYPE html>
       }
 
       .shell {
-        width: min(100vw - 20px, 1400px);
-        padding-top: 12px;
+        width: min(100vw - 18px, 1360px);
       }
 
       .hero,
-      .panel {
+      .panel,
+      .device-card {
         padding: 18px;
       }
     }
@@ -403,11 +391,10 @@ UI_HTML = """<!DOCTYPE html>
       <div class="eyebrow">Matter over Thread control room</div>
       <h1>Thread fabric dashboard</h1>
       <p>
-        Commission devices, inspect the bridge, and drive supported Matter endpoints from one place.
-        This UI talks directly to Thread2MQTT and mirrors the same runtime used for MQTT control.
+        Inspect the bridge, commission on-network Matter devices, and operate supported nodes from the same runtime that serves MQTT.
       </p>
-      <div class="hero-actions">
-        <button type="button" onclick="refreshOverview()">Refresh view</button>
+      <div class="toolbar">
+        <button type="button" onclick="refreshOverview(true)">Refresh view</button>
         <button type="button" class="ghost" onclick="reloadBridge()">Reload bridge snapshot</button>
       </div>
       <div id="flash" class="flash"></div>
@@ -417,16 +404,19 @@ UI_HTML = """<!DOCTYPE html>
       <section class="panel bridge-panel">
         <h2>Bridge status</h2>
         <p>Live OTBR, dataset, MQTT and Matter runtime visibility.</p>
-        <div id="bridge-stats" class="stat-grid"></div>
+        <div id="bridge-stats" class="stats"></div>
       </section>
 
       <section class="panel commission-panel">
         <h2>Commission device</h2>
-        <p>Paste a Matter setup code or QR payload and Thread2MQTT will start commissioning on its own fabric.</p>
+        <p>
+          Paste a Matter setup code or QR payload. This add-on commissions from the Home Assistant host in network-only mode,
+          so the device must already be visible as a commissionable Matter node on your Thread network.
+        </p>
         <form id="commission-form">
           <label>
             Pairing code
-            <textarea id="commission-code" rows="4" placeholder="MT:... or setup code"></textarea>
+            <textarea id="commission-code" rows="4" placeholder="MT:... or manual setup code"></textarea>
           </label>
           <div class="actions-row">
             <button type="submit">Start commissioning</button>
@@ -435,12 +425,8 @@ UI_HTML = """<!DOCTYPE html>
       </section>
 
       <section class="panel devices-panel">
-        <div class="device-header">
-          <div>
-            <h2>Devices</h2>
-            <p id="device-subtitle">No data yet.</p>
-          </div>
-        </div>
+        <h2>Devices</h2>
+        <p id="devices-subtitle">No data yet.</p>
         <div id="device-grid" class="device-grid"></div>
       </section>
     </section>
@@ -458,16 +444,16 @@ UI_HTML = """<!DOCTYPE html>
         .replaceAll("'", '&#39;');
     }
 
-    function humanize(key) {
-      return key.replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+    function humanize(value) {
+      return String(value).replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
     }
 
-    function showFlash(message, variant = 'success') {
+    function setFlash(message, variant = 'success') {
       const flash = document.getElementById('flash');
       flash.textContent = message;
       flash.className = `flash ${variant}`;
-      window.clearTimeout(showFlash.timeoutId);
-      showFlash.timeoutId = window.setTimeout(() => {
+      window.clearTimeout(setFlash.timeoutId);
+      setFlash.timeoutId = window.setTimeout(() => {
         flash.className = 'flash';
         flash.textContent = '';
       }, 4200);
@@ -492,13 +478,13 @@ UI_HTML = """<!DOCTYPE html>
       if (!response.ok) {
         throw new Error(data.error || data.message || `Request failed (${response.status})`);
       }
-
       return data;
     }
 
-    function renderBridge(overview) {
+    function renderStats(overview) {
       const bridge = overview.bridge || {};
       const matter = overview.matter || {};
+      const serverInfo = matter.server_info || {};
       const stats = [
         ['Bridge', bridge.dataset_loaded ? 'Online' : 'Booting'],
         ['Dataset source', bridge.dataset_source || 'unknown'],
@@ -506,6 +492,8 @@ UI_HTML = """<!DOCTYPE html>
         ['Managed devices', overview.devices.length],
         ['Matter endpoint', matter.url || 'n/a'],
         ['Matter connected', matter.connected ? 'Yes' : 'No'],
+        ['Thread dataset in Matter', serverInfo.thread_credentials_set ? 'Loaded' : 'Missing'],
+        ['Commissioning mode', serverInfo.bluetooth_enabled ? 'Bluetooth + network' : 'Network only'],
       ];
 
       if (bridge.last_error) {
@@ -520,15 +508,14 @@ UI_HTML = """<!DOCTYPE html>
       `).join('');
     }
 
-    function renderStateChips(device) {
-      const state = device.state || {};
-      const entries = Object.entries(state);
+    function renderState(device) {
+      const entries = Object.entries(device.state || {});
       if (!entries.length) {
-        return '<div class="state-chip">No reported state yet</div>';
+        return '<div class="chip">No reported state yet</div>';
       }
 
       return entries.map(([key, value]) => `
-        <div class="state-chip"><strong>${escapeHtml(humanize(key))}:</strong> ${escapeHtml(value)}</div>
+        <div class="chip"><strong>${escapeHtml(humanize(key))}:</strong> ${escapeHtml(value)}</div>
       `).join('');
     }
 
@@ -547,7 +534,7 @@ UI_HTML = """<!DOCTYPE html>
 
       return `
         <article class="device-card">
-          <div class="device-header">
+          <div class="device-head">
             <div>
               <h3>${escapeHtml(device.friendly_name)}</h3>
               <div class="subtle">${escapeHtml(device.vendor_name)} / ${escapeHtml(device.product_name)}</div>
@@ -557,13 +544,13 @@ UI_HTML = """<!DOCTYPE html>
             </div>
           </div>
 
-          <div class="pill-row">
+          <div class="pills">
             <div class="pill">Node ${escapeHtml(device.node_id)}</div>
             <div class="pill">${escapeHtml(device.unique_id)}</div>
-            ${(device.capabilities || []).length ? renderCapabilities(device) : ''}
+            ${renderCapabilities(device)}
           </div>
 
-          <div class="state-row">${renderStateChips(device)}</div>
+          <div class="state-chips">${renderState(device)}</div>
 
           <div class="device-actions" style="margin-top:14px;">
             ${canSwitch ? `<button type="button" onclick="sendDeviceCommand(${device.node_id}, {state: 'ON'})">On</button>
@@ -578,7 +565,7 @@ UI_HTML = """<!DOCTYPE html>
                 Brightness
                 <input id="brightness-${device.node_id}" type="range" min="0" max="254" value="${brightness}">
               </label>
-              <div class="command-row">
+              <div class="range-actions">
                 <button type="button" class="ghost" onclick="applyBrightness(${device.node_id})">Apply brightness</button>
               </div>
             </div>
@@ -590,7 +577,7 @@ UI_HTML = """<!DOCTYPE html>
                 Color temperature
                 <input id="color-${device.node_id}" type="range" min="153" max="500" value="${colorTemp}">
               </label>
-              <div class="command-row">
+              <div class="range-actions">
                 <button type="button" class="ghost" onclick="applyColorTemp(${device.node_id})">Apply color temperature</button>
               </div>
             </div>
@@ -606,7 +593,7 @@ UI_HTML = """<!DOCTYPE html>
 
     function renderDevices(overview) {
       const devices = overview.devices || [];
-      document.getElementById('device-subtitle').textContent = `${devices.length} device(s) known to the bridge.`;
+      document.getElementById('devices-subtitle').textContent = `${devices.length} device(s) known to the bridge.`;
 
       if (!devices.length) {
         document.getElementById('device-grid').innerHTML = '<div class="empty">No commissioned devices yet. Start with a Matter pairing code above.</div>';
@@ -618,10 +605,10 @@ UI_HTML = """<!DOCTYPE html>
 
     async function refreshOverview(showToast = false) {
       const overview = await api('api/overview');
-      renderBridge(overview);
+      renderStats(overview);
       renderDevices(overview);
       if (showToast) {
-        showFlash('Dashboard refreshed.');
+        setFlash('Dashboard refreshed.');
       }
     }
 
@@ -629,29 +616,29 @@ UI_HTML = """<!DOCTYPE html>
       try {
         await api('api/bridge/refresh', { method: 'POST', body: '{}' });
         await refreshOverview(false);
-        showFlash('Bridge snapshot reloaded.');
+        setFlash('Bridge snapshot reloaded.');
       } catch (error) {
-        showFlash(error.message, 'error');
+        setFlash(error.message, 'error');
       }
     }
 
     async function sendDeviceCommand(nodeId, payload) {
       try {
         await api(`api/device/${nodeId}/command`, { method: 'POST', body: JSON.stringify(payload) });
-        showFlash('Command sent.');
+        setFlash('Command sent.');
         window.setTimeout(() => refreshOverview(false), 700);
       } catch (error) {
-        showFlash(error.message, 'error');
+        setFlash(error.message, 'error');
       }
     }
 
     async function refreshDevice(nodeId) {
       try {
         await api(`api/device/${nodeId}/refresh`, { method: 'POST', body: '{}' });
-        showFlash('Interview requested.');
+        setFlash('Interview requested.');
         window.setTimeout(() => refreshOverview(false), 700);
       } catch (error) {
-        showFlash(error.message, 'error');
+        setFlash(error.message, 'error');
       }
     }
 
@@ -661,10 +648,10 @@ UI_HTML = """<!DOCTYPE html>
       }
       try {
         await api(`api/device/${nodeId}`, { method: 'DELETE' });
-        showFlash('Device removal requested.');
+        setFlash('Device removal requested.');
         window.setTimeout(() => refreshOverview(false), 700);
       } catch (error) {
-        showFlash(error.message, 'error');
+        setFlash(error.message, 'error');
       }
     }
 
@@ -682,20 +669,20 @@ UI_HTML = """<!DOCTYPE html>
       event.preventDefault();
       const code = document.getElementById('commission-code').value.trim();
       if (!code) {
-        showFlash('Enter a Matter pairing code first.', 'error');
+        setFlash('Enter a Matter pairing code first.', 'error');
         return;
       }
 
       try {
         await api('api/commission', { method: 'POST', body: JSON.stringify({ code }) });
         document.getElementById('commission-code').value = '';
-        showFlash('Commissioning started.');
+        setFlash('Commissioning started.');
       } catch (error) {
-        showFlash(error.message, 'error');
+        setFlash(error.message, 'error');
       }
     });
 
-    refreshOverview(false).catch((error) => showFlash(error.message, 'error'));
+    refreshOverview(false).catch((error) => setFlash(error.message, 'error'));
     window.setInterval(() => refreshOverview(false).catch(() => {}), POLL_INTERVAL_MS);
   </script>
 </body>
@@ -724,7 +711,7 @@ class Thread2MqttWebUi:
         self._command_router = command_router
 
     async def start(self) -> None:
-        """Start the web UI server."""
+        """Start the ingress web UI server."""
 
         @web.middleware
         async def ingress_only(request: web.Request, handler: web.Handler) -> web.StreamResponse:
@@ -775,29 +762,41 @@ class Thread2MqttWebUi:
         payload = await self._read_json(request)
         code = str(payload.get("code", "")).strip()
         if not code:
-            raise web.HTTPBadRequest(text=json.dumps({"error": "Missing Matter pairing code"}), content_type="application/json")
+            raise self._json_error(web.HTTPBadRequest, "Missing Matter pairing code")
 
         router = self._require_command_router()
-        await router.commission(code)
+        try:
+            await router.commission(code)
+        except MatterClientError as err:
+            raise self._json_error(web.HTTPBadRequest, str(err)) from err
         return web.json_response({"ok": True})
 
     async def _handle_device_command(self, request: web.Request) -> web.Response:
         payload = await self._read_json(request)
         node_id = int(request.match_info["node_id"])
         router = self._require_command_router()
-        await router.set_device_by_node(node_id, payload)
+        try:
+            await router.set_device_by_node(node_id, payload)
+        except (MatterClientError, ValueError) as err:
+            raise self._json_error(web.HTTPBadRequest, str(err)) from err
         return web.json_response({"ok": True})
 
     async def _handle_device_refresh(self, request: web.Request) -> web.Response:
         node_id = int(request.match_info["node_id"])
         router = self._require_command_router()
-        await router.refresh_device_by_node(node_id)
+        try:
+            await router.refresh_device_by_node(node_id)
+        except (MatterClientError, ValueError) as err:
+            raise self._json_error(web.HTTPBadRequest, str(err)) from err
         return web.json_response({"ok": True})
 
     async def _handle_device_remove(self, request: web.Request) -> web.Response:
         node_id = int(request.match_info["node_id"])
         router = self._require_command_router()
-        await router.remove_node(node_id)
+        try:
+            await router.remove_node(node_id)
+        except (MatterClientError, ValueError) as err:
+            raise self._json_error(web.HTTPBadRequest, str(err)) from err
         return web.json_response({"ok": True})
 
     def _build_overview(self, request: web.Request | None = None) -> dict[str, Any]:
@@ -850,24 +849,25 @@ class Thread2MqttWebUi:
         try:
             data = await request.json()
         except json.JSONDecodeError as err:
-            raise web.HTTPBadRequest(
-                text=json.dumps({"error": f"Invalid JSON payload: {err}"}),
-                content_type="application/json",
+            raise Thread2MqttWebUi._json_error(
+                web.HTTPBadRequest,
+                f"Invalid JSON payload: {err}",
             ) from err
         if not isinstance(data, dict):
-            raise web.HTTPBadRequest(
-                text=json.dumps({"error": "JSON payload must be an object"}),
-                content_type="application/json",
+            raise Thread2MqttWebUi._json_error(
+                web.HTTPBadRequest,
+                "JSON payload must be an object",
             )
         return data
 
     def _require_command_router(self) -> CommandRouter:
         if not self._command_router or not self._matter_client or not self._matter_client.connected:
-            raise web.HTTPServiceUnavailable(
-                text=json.dumps({"error": "Matter controller is not connected"}),
-                content_type="application/json",
-            )
+            raise self._json_error(web.HTTPServiceUnavailable, "Matter controller is not connected")
         return self._command_router
+
+    @staticmethod
+    def _json_error(error_type: type[web.HTTPException], message: str) -> web.HTTPException:
+        return error_type(text=json.dumps({"error": message}), content_type="application/json")
 
     @staticmethod
     def _is_allowed_remote(remote: str | None) -> bool:

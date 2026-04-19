@@ -98,8 +98,12 @@ class MatterClient:
     async def set_thread_dataset(self, dataset_tlvs: str) -> Any:
         return await self._send_command("set_thread_dataset", dataset=dataset_tlvs)
 
-    async def commission_with_code(self, code: str) -> Any:
-        return await self._send_command("commission_with_code", code=code)
+    async def commission_with_code(self, code: str, network_only: bool = False) -> Any:
+        return await self._send_command(
+            "commission_with_code",
+            code=code,
+            network_only=network_only,
+        )
 
     async def commission_on_network(self, setup_pin_code: int) -> Any:
         return await self._send_command("commission_on_network", setup_pin_code=setup_pin_code)
