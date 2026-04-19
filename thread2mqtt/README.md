@@ -10,6 +10,7 @@ into MQTT – giving you a **zigbee2mqtt-style** experience for Thread.
 - Publishes device states as JSON to MQTT and subscribes to `/set` topics for control.
 - Full **Home Assistant MQTT Discovery** for every commissioned device.
 - Commission new devices from MQTT via `thread2mqtt/bridge/request/permit_join`.
+- Uses Matter port `5581` by default to avoid conflicting with Home Assistant's official Matter Server on `5580`.
 
 ## Supported device types
 

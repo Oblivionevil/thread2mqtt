@@ -41,8 +41,14 @@ class BridgeConfig:
 @dataclass(frozen=True)
 class MatterConfig:
     enabled: bool
-    server_url: str
+    host: str
+    port: int
+    listen_address: str | None
     storage_path: str
+
+    @property
+    def server_url(self) -> str:
+        return f"ws://{self.host}:{self.port}/ws"
 
 
 @dataclass(frozen=True)
@@ -118,9 +124,18 @@ def load_config(options_path: str | None = None) -> AppConfig:
     matter_raw = _require_mapping(raw.get("matter", {}), "matter")
     matter = MatterConfig(
         enabled=bool(matter_raw.get("enabled", True)),
-        server_url=str(matter_raw.get("server_url", "ws://localhost:5580/ws")).strip(),
+        host=str(matter_raw.get("host", "127.0.0.1")).strip(),
+        port=int(matter_raw.get("port", 5581)),
+        listen_address=_optional_string(matter_raw.get("listen_address", "127.0.0.1")),
         storage_path=str(matter_raw.get("storage_path", "/data/matter")).strip(),
     )
+
+    if not matter.host:
+        raise ValueError("Matter host must not be empty")
+    if matter.port < 1 or matter.port > 65535:
+        raise ValueError("Matter port must be between 1 and 65535")
+    if not matter.storage_path:
+        raise ValueError("Matter storage_path must not be empty")
 
     return AppConfig(
         log_level=str(raw.get("log_level", "info")).strip().upper(),

@@ -63,3 +63,12 @@ configuration:
       enabled:
         name: Enable Matter
         description: Start the Matter controller and bridge Thread devices.
+      host:
+        name: Matter host
+        description: Host used by the bridge to connect to the built-in Matter server.
+      port:
+        name: Matter port
+        description: TCP port for the built-in Matter server. Default 5581 avoids collisions with Home Assistant's official Matter add-on.
+      listen_address:
+        name: Listen address
+        description: Optional bind address for the built-in Matter server. Use 127.0.0.1 to keep it local to the host network namespace.

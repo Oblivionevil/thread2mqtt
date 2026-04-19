@@ -1,17 +1,31 @@
 #!/command/with-contenv bashio
 set -euo pipefail
 
-MATTER_PORT=5580
+MATTER_HOST="$(bashio::config 'matter.host')"
+MATTER_PORT="$(bashio::config 'matter.port')"
+MATTER_LISTEN_ADDRESS="$(bashio::config 'matter.listen_address')"
 MATTER_STORAGE="/data/matter"
 
 mkdir -p "${MATTER_STORAGE}"
 
+if nc -z "${MATTER_HOST}" "${MATTER_PORT}" 2>/dev/null; then
+    bashio::log.error "Matter port ${MATTER_PORT} on ${MATTER_HOST} is already in use. Set matter.port to a free port in the add-on options."
+    exit 1
+fi
+
 # ── Start python-matter-server in the background ──────────────────
 bashio::log.info "Starting Matter Server on port ${MATTER_PORT}"
-matter-server \
-    --storage-path "${MATTER_STORAGE}" \
-    --port "${MATTER_PORT}" \
-    --log-level info &
+MATTER_ARGS=(
+    --storage-path "${MATTER_STORAGE}"
+    --port "${MATTER_PORT}"
+    --log-level info
+)
+
+if [ -n "${MATTER_LISTEN_ADDRESS}" ]; then
+    MATTER_ARGS+=(--listen-address "${MATTER_LISTEN_ADDRESS}")
+fi
+
+matter-server "${MATTER_ARGS[@]}" &
 MATTER_PID=$!
 
 cleanup() {
@@ -25,7 +39,7 @@ trap cleanup EXIT TERM INT
 bashio::log.info "Waiting for Matter Server to initialize …"
 READY=0
 for i in $(seq 1 30); do
-    if nc -z localhost "${MATTER_PORT}" 2>/dev/null; then
+    if nc -z "${MATTER_HOST}" "${MATTER_PORT}" 2>/dev/null; then
         bashio::log.info "Matter Server is ready"
         READY=1
         break

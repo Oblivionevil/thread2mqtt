@@ -77,6 +77,9 @@ MQTT Discovery, zigbee2mqtt-style topics, and bidirectional control.
 ### `matter`
 
 - `enabled`: Enable the built-in Matter controller (default: true).
+- `host`: Host used by Thread2MQTT to reach the built-in Matter server (default: `127.0.0.1`).
+- `port`: TCP port for the built-in Matter server (default: `5581`).
+- `listen_address`: Bind address for the built-in Matter server (default: `127.0.0.1`).
 
 ## Notes
 
@@ -85,3 +88,4 @@ MQTT Discovery, zigbee2mqtt-style topics, and bidirectional control.
 - The SLZB-MR4U (or any OTBR) is treated as an external border router.
   This add-on does **not** start OTBR itself.
 - Only amd64 and aarch64 are supported (Matter SDK wheel availability).
+- The built-in Matter server defaults to port `5581` to avoid colliding with Home Assistant's official Matter Server add-on on `5580`.
