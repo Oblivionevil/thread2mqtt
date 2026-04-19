@@ -366,6 +366,35 @@ UI_HTML = """<!DOCTYPE html>
       background: rgba(255,255,255,0.02);
     }
 
+    .detail-grid {
+      display: grid;
+      gap: 4px;
+      margin-top: 10px;
+    }
+
+    .detail-row {
+      display: flex;
+      gap: 12px;
+      font-size: 13px;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .detail-label {
+      color: var(--muted);
+      min-width: 100px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin: 4px 0 8px;
+    }
+
     @media (max-width: 960px) {
       .bridge-panel,
       .commission-panel,
@@ -552,12 +581,14 @@ UI_HTML = """<!DOCTYPE html>
       const canSwitch = Boolean(device.controls?.state);
       const canBrightness = Boolean(device.controls?.brightness);
       const canColorTemp = Boolean(device.controls?.color_temp);
+      const endpoints = device.endpoints || {};
+      const epCount = Object.keys(endpoints).length;
 
       return `
         <article class="device-card">
           <div class="device-head">
             <div>
-              <h3>${escapeHtml(device.friendly_name)}</h3>
+              <h3 id="name-display-${device.node_id}">${escapeHtml(device.friendly_name)}</h3>
               <div class="subtle">${escapeHtml(device.vendor_name)} / ${escapeHtml(device.product_name)}</div>
             </div>
             <div class="pill ${device.available ? 'status-online' : 'status-offline'}">
@@ -568,6 +599,10 @@ UI_HTML = """<!DOCTYPE html>
           <div class="pills">
             <div class="pill">Node ${escapeHtml(device.node_id)}</div>
             <div class="pill">${escapeHtml(device.unique_id)}</div>
+            ${device.serial_number ? `<div class="pill">S/N ${escapeHtml(device.serial_number)}</div>` : ''}
+            ${device.vendor_id != null ? `<div class="pill">VID ${escapeHtml(device.vendor_id)}</div>` : ''}
+            ${device.product_id != null ? `<div class="pill">PID ${escapeHtml(device.product_id)}</div>` : ''}
+            <div class="pill">${epCount} endpoint(s)</div>
             ${renderCapabilities(device)}
           </div>
 
@@ -577,6 +612,9 @@ UI_HTML = """<!DOCTYPE html>
             ${canSwitch ? `<button type="button" onclick="sendDeviceCommand(${device.node_id}, {state: 'ON'})">On</button>
             <button type="button" class="ghost" onclick="sendDeviceCommand(${device.node_id}, {state: 'OFF'})">Off</button>` : ''}
             <button type="button" class="ghost" onclick="refreshDevice(${device.node_id})">Refresh</button>
+            <button type="button" class="ghost" onclick="pingDevice(${device.node_id})">Ping</button>
+            <button type="button" class="ghost" onclick="renameDevice(${device.node_id}, '${escapeHtml(device.friendly_name)}')">Rename</button>
+            <button type="button" class="ghost" onclick="openCommissioningWindow(${device.node_id})">Share</button>
             <button type="button" class="danger" onclick="removeDevice(${device.node_id})">Remove</button>
           </div>
 
@@ -603,6 +641,27 @@ UI_HTML = """<!DOCTYPE html>
               </div>
             </div>
           ` : ''}
+
+          <details>
+            <summary>Device details &amp; endpoints</summary>
+            <div class="detail-grid">
+              <div class="detail-row"><span class="detail-label">Node ID</span><span>${escapeHtml(device.node_id)}</span></div>
+              <div class="detail-row"><span class="detail-label">Unique ID</span><span>${escapeHtml(device.unique_id)}</span></div>
+              <div class="detail-row"><span class="detail-label">Vendor</span><span>${escapeHtml(device.vendor_name)} (${device.vendor_id ?? 'n/a'})</span></div>
+              <div class="detail-row"><span class="detail-label">Product</span><span>${escapeHtml(device.product_name)} (${device.product_id ?? 'n/a'})</span></div>
+              ${device.serial_number ? `<div class="detail-row"><span class="detail-label">Serial</span><span>${escapeHtml(device.serial_number)}</span></div>` : ''}
+              ${device.node_label ? `<div class="detail-row"><span class="detail-label">Node label</span><span>${escapeHtml(device.node_label)}</span></div>` : ''}
+            </div>
+            ${Object.entries(endpoints).map(([epId, ep]) => `
+              <div style="margin-top:10px;">
+                <strong>Endpoint ${escapeHtml(epId)}</strong>
+                <span class="subtle"> — Device types: ${(ep.device_type_ids || []).map(id => '0x' + id.toString(16).toUpperCase().padStart(4, '0')).join(', ') || 'none'}</span>
+                <div class="pills" style="margin-top:6px;">
+                  ${(ep.mappings || []).map(m => `<div class="pill">${escapeHtml(m.platform)}:${escapeHtml(m.key)} (${m.cluster}/${m.attribute})</div>`).join('')}
+                </div>
+              </div>
+            `).join('')}
+          </details>
 
           <details>
             <summary>Raw state payload</summary>
@@ -691,6 +750,41 @@ UI_HTML = """<!DOCTYPE html>
       await sendDeviceCommand(nodeId, { color_temp: Number(input.value) });
     }
 
+    async function renameDevice(nodeId, currentName) {
+      const newName = window.prompt('New name for this device:', currentName);
+      if (!newName || newName.trim() === currentName) {
+        return;
+      }
+      try {
+        await api(`api/device/${nodeId}/rename`, { method: 'POST', body: JSON.stringify({ name: newName.trim() }) });
+        setFlash(`Renamed node ${nodeId} to "${newName.trim()}".`);
+        window.setTimeout(() => refreshOverview(false), 400);
+      } catch (error) {
+        setFlash(error.message, 'error');
+      }
+    }
+
+    async function pingDevice(nodeId) {
+      try {
+        const result = await api(`api/device/${nodeId}/ping`, { method: 'POST', body: '{}' });
+        setFlash(`Ping node ${nodeId}: reachable.`);
+      } catch (error) {
+        setFlash(`Ping node ${nodeId} failed: ${error.message}`, 'error');
+      }
+    }
+
+    async function openCommissioningWindow(nodeId) {
+      if (!window.confirm(`Open a commissioning window on node ${nodeId}? This allows another controller to add this device (multi-admin).`)) {
+        return;
+      }
+      try {
+        const result = await api(`api/device/${nodeId}/open-commissioning-window`, { method: 'POST', body: '{}' });
+        setFlash(`Commissioning window opened for node ${nodeId}. The device is now discoverable for ~3 minutes.`);
+      } catch (error) {
+        setFlash(error.message, 'error');
+      }
+    }
+
     document.getElementById('commission-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const code = document.getElementById('commission-code').value.trim();
@@ -770,6 +864,9 @@ class Thread2MqttWebUi:
                 web.post("/api/commission", self._handle_commission),
                 web.post(r"/api/device/{node_id:\\d+}/command", self._handle_device_command),
                 web.post(r"/api/device/{node_id:\\d+}/refresh", self._handle_device_refresh),
+                web.post(r"/api/device/{node_id:\\d+}/rename", self._handle_device_rename),
+                web.post(r"/api/device/{node_id:\\d+}/ping", self._handle_device_ping),
+                web.post(r"/api/device/{node_id:\\d+}/open-commissioning-window", self._handle_open_commissioning_window),
                 web.delete(r"/api/device/{node_id:\\d+}", self._handle_device_remove),
             ]
         )
@@ -848,6 +945,35 @@ class Thread2MqttWebUi:
             raise self._json_error(web.HTTPBadRequest, str(err)) from err
         return web.json_response({"ok": True})
 
+    async def _handle_device_rename(self, request: web.Request) -> web.Response:
+        node_id = int(request.match_info["node_id"])
+        payload = await self._read_json(request)
+        new_name = str(payload.get("name", "")).strip()
+        if not new_name:
+            raise self._json_error(web.HTTPBadRequest, "Missing or empty 'name' field")
+        if not self._registry.rename_device(node_id, new_name):
+            raise self._json_error(web.HTTPBadRequest, f"Unknown node_id: {node_id}")
+        LOGGER.info("Renamed node %d to '%s'", node_id, new_name)
+        return web.json_response({"ok": True})
+
+    async def _handle_device_ping(self, request: web.Request) -> web.Response:
+        node_id = int(request.match_info["node_id"])
+        self._require_command_router()
+        try:
+            result = await self._matter_client.ping_node(node_id)
+        except MatterClientError as err:
+            raise self._json_error(web.HTTPBadRequest, str(err)) from err
+        return web.json_response({"ok": True, "result": result})
+
+    async def _handle_open_commissioning_window(self, request: web.Request) -> web.Response:
+        node_id = int(request.match_info["node_id"])
+        self._require_command_router()
+        try:
+            result = await self._matter_client.open_commissioning_window(node_id)
+        except MatterClientError as err:
+            raise self._json_error(web.HTTPBadRequest, str(err)) from err
+        return web.json_response({"ok": True, "result": result})
+
     def _build_overview(self, request: web.Request | None = None) -> dict[str, Any]:
         devices = sorted(self._registry.devices.values(), key=lambda device: device.friendly_name.lower())
         matter_connected = bool(self._matter_client and self._matter_client.connected)
@@ -878,9 +1004,23 @@ class Thread2MqttWebUi:
             "friendly_name": device.friendly_name,
             "vendor_name": device.vendor_name,
             "product_name": device.product_name,
+            "vendor_id": device.vendor_id,
+            "product_id": device.product_id,
+            "serial_number": device.serial_number,
+            "node_label": device.node_label,
             "available": device.available,
             "state": state,
             "capabilities": capabilities,
+            "endpoints": {
+                str(ep_id): {
+                    "device_type_ids": ep.device_type_ids,
+                    "mappings": [
+                        {"platform": m.ha_platform, "key": m.attribute_key, "cluster": m.cluster_id, "attribute": m.attribute_id}
+                        for m in ep.entity_mappings
+                    ],
+                }
+                for ep_id, ep in device.endpoints.items()
+            },
             "controls": {
                 "state": device.get_endpoint_for_command("state") is not None,
                 "brightness": device.get_endpoint_for_command("brightness") is not None,
