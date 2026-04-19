@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from ipaddress import ip_address
 import json
 import logging
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 from .clusters import ClusterId
 from .device_registry import Device, DeviceRegistry
 from .matter_client import MatterClient, MatterClientError
+from .setup_codes import MatterSetupCodeError, parse_manual_setup_pin_code
 
 LOGGER = logging.getLogger(__name__)
 
@@ -68,17 +70,52 @@ class CommandRouter:
             raise ValueError(f"Unknown node_id: {node_id}")
         await self.refresh_device(device)
 
-    async def commission(self, code: str) -> None:
-        LOGGER.info("Commissioning device with code: %s", code)
+    async def commission(
+        self,
+        code: str | None = None,
+        *,
+        ip_addr: str | None = None,
+        setup_pin_code: int | None = None,
+    ) -> None:
+        normalized_code = code.strip() if isinstance(code, str) else ""
+        normalized_ip = str(ip_addr).strip() if ip_addr else ""
+
+        if normalized_ip:
+            try:
+                normalized_ip = str(ip_address(normalized_ip))
+            except ValueError as err:
+                raise MatterClientError(f"Invalid target IP address: {normalized_ip}") from err
+
+            if setup_pin_code is None:
+                if not normalized_code:
+                    raise MatterClientError(
+                        "IP-directed commissioning requires a manual pairing code or explicit setup_pin_code."
+                    )
+                try:
+                    setup_pin_code = parse_manual_setup_pin_code(normalized_code)
+                except MatterSetupCodeError as err:
+                    raise MatterClientError(str(err)) from err
+
+            LOGGER.info("Commissioning device with target IP %s", normalized_ip)
+            try:
+                await self._matter.commission_on_network(setup_pin_code, ip_addr=normalized_ip)
+            except MatterClientError as err:
+                raise MatterClientError(f"IP-directed commissioning failed for {normalized_ip}: {err}") from err
+            return
+
+        if not normalized_code:
+            raise MatterClientError("Missing Matter pairing code")
+
+        LOGGER.info("Commissioning device with code: %s", normalized_code)
         bluetooth_enabled = bool(self._matter.server_info.get("bluetooth_enabled"))
         network_only = not bluetooth_enabled
 
         try:
-            await self._matter.commission_with_code(code, network_only=network_only)
+            await self._matter.commission_with_code(normalized_code, network_only=network_only)
         except MatterClientError as err:
             if not network_only and "Bluetooth commissioning is not available" in str(err):
                 LOGGER.info("Retrying commissioning in network-only mode")
-                await self._matter.commission_with_code(code, network_only=True)
+                await self._matter.commission_with_code(normalized_code, network_only=True)
                 return
 
             if network_only:
@@ -109,13 +146,33 @@ class CommandRouter:
     def handle_commission(self, payload_str: str) -> None:
         try:
             data = json.loads(payload_str)
-            code = data.get("code") or data.get("value") or payload_str
         except json.JSONDecodeError:
-            code = payload_str.strip()
-        if not code:
+            data = None
+
+        if isinstance(data, dict):
+            code_value = data.get("code") or data.get("value")
+            ip_addr = data.get("ip") or data.get("ip_addr")
+            try:
+                setup_pin_code = self._parse_setup_pin_code(data.get("setup_pin_code", data.get("setup_pin")))
+            except ValueError as err:
+                LOGGER.warning("Invalid commission request: %s", err)
+                return
+            code = str(code_value).strip() if code_value is not None else None
+            ip_addr = str(ip_addr).strip() if ip_addr is not None else None
+        else:
+            code = payload_str.strip() or None
+            ip_addr = None
+            setup_pin_code = None
+
+        if not code and setup_pin_code is None:
             return
-        future = asyncio.run_coroutine_threadsafe(self.commission(str(code)), self._loop)
-        future.add_done_callback(lambda fut: self._log_future_error(fut, f"Commission failed for {code}"))
+
+        future = asyncio.run_coroutine_threadsafe(
+            self.commission(code, ip_addr=ip_addr, setup_pin_code=setup_pin_code),
+            self._loop,
+        )
+        context = ip_addr or code or f"setup_pin_code={setup_pin_code}"
+        future.add_done_callback(lambda fut: self._log_future_error(fut, f"Commission failed for {context}"))
 
     def handle_remove(self, payload_str: str) -> None:
         try:
@@ -172,3 +229,12 @@ class CommandRouter:
             future.result()
         except Exception as err:
             LOGGER.error("%s: %s", context, err, exc_info=(type(err), err, err.__traceback__))
+
+    @staticmethod
+    def _parse_setup_pin_code(value: Any) -> int | None:
+        if value in (None, ""):
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError) as err:
+            raise ValueError("setup_pin_code must be an integer") from err

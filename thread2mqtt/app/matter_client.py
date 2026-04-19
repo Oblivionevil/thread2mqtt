@@ -105,8 +105,12 @@ class MatterClient:
             network_only=network_only,
         )
 
-    async def commission_on_network(self, setup_pin_code: int) -> Any:
-        return await self._send_command("commission_on_network", setup_pin_code=setup_pin_code)
+    async def commission_on_network(self, setup_pin_code: int, ip_addr: str | None = None) -> Any:
+        return await self._send_command(
+            "commission_on_network",
+            setup_pin_code=setup_pin_code,
+            ip_addr=ip_addr,
+        )
 
     async def open_commissioning_window(self, node_id: int) -> Any:
         return await self._send_command("open_commissioning_window", node_id=node_id)

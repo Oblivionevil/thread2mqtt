@@ -30,6 +30,11 @@ occupancy sensors, light sensors, door locks, thermostats.
    Payload:    {"code": "MT:Y.K9042C00KA0648G00"}
    ```
    The device must already be reachable as a commissionable Matter node on your Thread network.
+   If the device is reachable but discovery is unreliable, you can target it directly by IP with a manual pairing code:
+   ```
+   Publish to: thread2mqtt/bridge/request/permit_join
+   Payload:    {"code": "12345678901", "ip": "192.168.1.50"}
+   ```
    For factory-new Thread devices that only expose Bluetooth onboarding, use a vendor app or another BLE-capable commissioner first.
 5. The device appears as `thread2mqtt/<friendly_name>` with full HA entities.
 
@@ -39,6 +44,6 @@ The web UI is available from the add-on page through Home Assistant ingress.
 It provides:
 
 - bridge health, OTBR reachability, dataset source, and Matter controller status
-- on-network commissioning for Matter devices with setup codes
+- on-network commissioning for Matter devices with setup codes, with optional direct-IP targeting for stubborn discovery cases
 - per-device controls for supported features like on/off, brightness, and color temperature
 - device refresh and remove actions

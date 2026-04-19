@@ -13,7 +13,7 @@ MQTT Discovery, zigbee2mqtt-style topics, and bidirectional control.
 - Runs a built-in python-matter-server instance with its own fabric.
 - Loads the active Thread dataset from OTBR (or manual TLVs) and pushes it to
   the Matter server.
-- Commissions on-network Matter devices via MQTT (`permit_join`).
+- Commissions on-network Matter devices via MQTT (`permit_join`), including an optional target IP for direct commissioning.
 - Publishes device states in zigbee2mqtt-compatible JSON payloads.
 - Supports set commands (on/off, brightness, color temperature).
 - Announces every device into Home Assistant via MQTT Discovery.
@@ -26,7 +26,7 @@ After starting the add-on, use **Open Web UI** in the Home Assistant add-on page
 The web UI includes:
 
 - bridge diagnostics and Matter runtime status
-- on-network Matter commissioning with pairing codes
+- on-network Matter commissioning with pairing codes and optional direct-IP targeting
 - device cards with live state, on/off control, brightness, color temperature
 - refresh and remove actions for commissioned nodes
 
@@ -36,6 +36,8 @@ The UI only accepts local Home Assistant ingress traffic and localhost access.
 Thread2MQTT commissions from the Home Assistant host without relying on Bluetooth.
 That means the target device must already be advertising as a commissionable Matter node on the Thread network,
 for example after vendor-app onboarding or when another controller opened a multi-admin window.
+If discovery is unreliable but you know the device IP, `permit_join` and the web UI can target that IP directly.
+That direct-IP path needs either a manual pairing code or an explicit `setup_pin_code`.
 
 ## MQTT Topics
 
@@ -48,7 +50,7 @@ for example after vendor-app onboarding or when another controller opened a mult
 | `thread2mqtt/bridge/request/ping` | Request a pong |
 | `thread2mqtt/bridge/request/info` | Republish bridge attributes |
 | `thread2mqtt/bridge/request/reload` | Reload OTBR dataset |
-| `thread2mqtt/bridge/request/permit_join` | Commission a device (`{"code":"MT:..."}`) |
+| `thread2mqtt/bridge/request/permit_join` | Commission a device (`{"code":"MT:..."}` or `{"code":"12345678901","ip":"192.168.1.50"}`) |
 | `thread2mqtt/bridge/request/remove` | Remove a device (`{"node_id":1}`) |
 | `thread2mqtt/bridge/response/<cmd>` | Response to a bridge request |
 

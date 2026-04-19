@@ -410,13 +410,18 @@ UI_HTML = """<!DOCTYPE html>
       <section class="panel commission-panel">
         <h2>Commission device</h2>
         <p>
-          Paste a Matter setup code or QR payload. This add-on commissions from the Home Assistant host in network-only mode,
-          so the device must already be visible as a commissionable Matter node on your Thread network.
+          Paste a Matter setup code or QR payload. Leave the target IP empty for normal discovery-based commissioning.
+          Set a target IP when the device is reachable but discovery is unreliable; that path needs a manual pairing code
+          or an explicit setup PIN through the API.
         </p>
         <form id="commission-form">
           <label>
             Pairing code
             <textarea id="commission-code" rows="4" placeholder="MT:... or manual setup code"></textarea>
+          </label>
+          <label>
+            Target IP (optional)
+            <input id="commission-ip" type="text" placeholder="192.168.2.168">
           </label>
           <div class="actions-row">
             <button type="submit">Start commissioning</button>
@@ -668,15 +673,21 @@ UI_HTML = """<!DOCTYPE html>
     document.getElementById('commission-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const code = document.getElementById('commission-code').value.trim();
+      const ip = document.getElementById('commission-ip').value.trim();
       if (!code) {
         setFlash('Enter a Matter pairing code first.', 'error');
         return;
       }
 
       try {
-        await api('api/commission', { method: 'POST', body: JSON.stringify({ code }) });
+        const payload = { code };
+        if (ip) {
+          payload.ip = ip;
+        }
+        await api('api/commission', { method: 'POST', body: JSON.stringify(payload) });
         document.getElementById('commission-code').value = '';
-        setFlash('Commissioning started.');
+        document.getElementById('commission-ip').value = '';
+        setFlash(ip ? 'IP-directed commissioning started.' : 'Commissioning started.');
       } catch (error) {
         setFlash(error.message, 'error');
       }
@@ -760,13 +771,21 @@ class Thread2MqttWebUi:
 
     async def _handle_commission(self, request: web.Request) -> web.Response:
         payload = await self._read_json(request)
-        code = str(payload.get("code", "")).strip()
-        if not code:
-            raise self._json_error(web.HTTPBadRequest, "Missing Matter pairing code")
+      code_value = payload.get("code")
+      code = str(code_value).strip() if code_value is not None else ""
+      ip_addr = str(payload.get("ip") or payload.get("ip_addr") or "").strip()
+
+      try:
+        setup_pin_code = self._parse_setup_pin_code(payload.get("setup_pin_code", payload.get("setup_pin")))
+      except ValueError as err:
+        raise self._json_error(web.HTTPBadRequest, str(err)) from err
+
+      if not code and setup_pin_code is None:
+        raise self._json_error(web.HTTPBadRequest, "Missing Matter pairing code or setup_pin_code")
 
         router = self._require_command_router()
         try:
-            await router.commission(code)
+        await router.commission(code or None, ip_addr=ip_addr or None, setup_pin_code=setup_pin_code)
         except MatterClientError as err:
             raise self._json_error(web.HTTPBadRequest, str(err)) from err
         return web.json_response({"ok": True})
@@ -877,3 +896,12 @@ class Thread2MqttWebUi:
             return str(ip_address(remote)) in ALLOWED_REMOTES
         except ValueError:
             return False
+
+      @staticmethod
+      def _parse_setup_pin_code(value: Any) -> int | None:
+        if value in (None, ""):
+          return None
+        try:
+          return int(value)
+        except (TypeError, ValueError) as err:
+          raise ValueError("setup_pin_code must be an integer") from err
