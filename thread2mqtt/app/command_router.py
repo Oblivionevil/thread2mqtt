@@ -109,11 +109,27 @@ class CommandRouter:
                 except MatterSetupCodeError as err:
                     raise MatterClientError(str(err)) from err
 
-            LOGGER.info("Commissioning device with target IP %s", normalized_ip)
+            LOGGER.info(
+                "Commissioning device with target IP %s (setup_pin_code=%s)",
+                normalized_ip,
+                setup_pin_code,
+            )
             try:
                 await self._matter.commission_on_network(setup_pin_code, ip_addr=normalized_ip)
             except MatterClientError as err:
-                raise MatterClientError(f"IP-directed commissioning failed for {normalized_ip}: {err}") from err
+                message = str(err)
+                hint = ""
+                if "Commissioning failed" in message or "PASE" in message:
+                    hint = (
+                        " Hint: the IP responded but the PASE handshake failed. Usually this means the target IP "
+                        "is NOT the Matter device itself (e.g. it points at Home Assistant or another host), "
+                        "the setup PIN does not match the device sticker, or the device's commissioning window is "
+                        "closed. For Thread devices, use the device's IPv6 address (fd... via the Border Router), "
+                        "not the Home Assistant host IP."
+                    )
+                raise MatterClientError(
+                    f"IP-directed commissioning failed for {normalized_ip}: {message}.{hint}"
+                ) from err
             return
 
         if not normalized_code:
