@@ -1,5 +1,5 @@
 name: "Thread2MQTT"
-version: "0.1.0"
+version: "0.1.1"
 slug: "thread2mqtt"
 description: >-
   Experimental Matter-over-Thread to MQTT bridge for Home Assistant.
@@ -9,6 +9,7 @@ arch:
   - amd64
 startup: services
 boot: auto
+init: false
 host_network: true
 host_dbus: true
 apparmor: false
