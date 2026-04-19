@@ -1,0 +1,65 @@
+configuration:
+  log_level:
+    name: Log level
+    description: Verbosity of the Thread2MQTT bridge logs.
+  mqtt:
+    name: MQTT settings
+    description: Connection settings for the MQTT broker.
+    fields:
+      host:
+        name: Broker host
+        description: Hostname or IP address of the MQTT broker.
+      port:
+        name: Broker port
+        description: TCP port of the MQTT broker.
+      username:
+        name: Username
+        description: Optional MQTT username.
+      password:
+        name: Password
+        description: Optional MQTT password.
+      client_id:
+        name: Client ID
+        description: MQTT client identifier used by the add-on.
+      discovery_prefix:
+        name: Discovery prefix
+        description: Home Assistant MQTT discovery prefix.
+      base_topic:
+        name: Base topic
+        description: Base MQTT topic used by the bridge.
+      tls:
+        name: Enable TLS
+        description: Use TLS when connecting to the MQTT broker.
+  otbr:
+    name: OTBR settings
+    description: External OpenThread Border Router connection settings.
+    fields:
+      url:
+        name: OTBR URL
+        description: Base URL of the external OTBR endpoint.
+      dataset_source:
+        name: Dataset source
+        description: Load the Thread dataset from OTBR or from the manual field.
+      dataset_tlvs:
+        name: Manual dataset TLVs
+        description: Manual Thread operational dataset TLVs used as a fallback or manual source.
+      timeout_seconds:
+        name: OTBR timeout
+        description: HTTP timeout in seconds for OTBR requests.
+  bridge:
+    name: Bridge settings
+    description: Behavior of the MQTT bridge runtime.
+    fields:
+      publish_retained:
+        name: Publish retained messages
+        description: Retain discovery and status payloads on the broker.
+      birth_topic:
+        name: Home Assistant birth topic
+        description: Topic watched for Home Assistant online events.
+  matter:
+    name: Matter controller
+    description: Settings for the built-in Matter controller.
+    fields:
+      enabled:
+        name: Enable Matter
+        description: Start the Matter controller and bridge Thread devices.

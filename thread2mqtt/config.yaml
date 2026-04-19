@@ -1,0 +1,59 @@
+name: "Thread2MQTT"
+version: "0.1.0"
+slug: "thread2mqtt"
+description: >-
+  Experimental Matter-over-Thread to MQTT bridge for Home Assistant.
+url: "https://github.com/Oblivionevil/thread2mqtt"
+arch:
+  - aarch64
+  - amd64
+startup: services
+boot: auto
+host_network: true
+host_dbus: true
+apparmor: false
+map:
+  - type: addon_config
+    read_only: false
+options:
+  log_level: info
+  mqtt:
+    host: core-mosquitto
+    port: 1883
+    username: ""
+    password: ""
+    client_id: thread2mqtt
+    discovery_prefix: homeassistant
+    base_topic: thread2mqtt
+    tls: false
+  otbr:
+    url: http://slzb-mr4u.local:8081
+    dataset_source: otbr
+    dataset_tlvs: ""
+    timeout_seconds: 10
+  bridge:
+    publish_retained: true
+    birth_topic: homeassistant/status
+  matter:
+    enabled: true
+schema:
+  log_level: list(trace|debug|info|notice|warning|error|fatal)
+  mqtt:
+    host: str
+    port: port
+    username: str?
+    password: password?
+    client_id: str
+    discovery_prefix: str
+    base_topic: str
+    tls: bool
+  otbr:
+    url: url
+    dataset_source: list(otbr|manual)
+    dataset_tlvs: str?
+    timeout_seconds: int(1,60)
+  bridge:
+    publish_retained: bool
+    birth_topic: str
+  matter:
+    enabled: bool
