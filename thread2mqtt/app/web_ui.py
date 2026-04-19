@@ -499,13 +499,6 @@ UI_HTML = """<!DOCTYPE html>
       const flash = document.getElementById('flash');
       flash.textContent = message;
       flash.className = `flash ${variant}`;
-      window.clearTimeout(setFlash.timeoutId);
-      if (variant !== 'error') {
-        setFlash.timeoutId = window.setTimeout(() => {
-          flash.className = 'flash';
-          flash.textContent = '';
-        }, 4200);
-      }
     }
 
     async function api(path, options = {}) {
