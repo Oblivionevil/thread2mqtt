@@ -833,13 +833,14 @@ UI_HTML = """<!DOCTYPE html>
         const result = await api(`api/device/${nodeId}/check-update`, { method: 'POST', body: '{}' });
         if (result.update_available && result.update_info) {
           const info = result.update_info;
+          const swVersion = info.software_version != null ? info.software_version : '';
           panel.innerHTML = `
             <h4>Update available</h4>
             ${info.software_version_string ? `<div class="update-detail">Version: ${escapeHtml(info.software_version_string)}</div>` : ''}
             ${info.software_version != null ? `<div class="update-detail">Build: ${escapeHtml(info.software_version)}</div>` : ''}
             ${info.release_notes_url ? `<div class="update-detail"><a href="${escapeHtml(info.release_notes_url)}" target="_blank" rel="noopener" style="color:var(--accent);">Release notes</a></div>` : ''}
             <div class="update-actions">
-              <button type="button" onclick="applyUpdate(${nodeId})">Install Update</button>
+              <button type="button" onclick="applyUpdate(${nodeId}, ${escapeHtml(String(swVersion))})">Install Update</button>
               <button type="button" class="ghost" onclick="dismissUpdate(${nodeId})">Dismiss</button>
             </div>
           `;
@@ -855,14 +856,14 @@ UI_HTML = """<!DOCTYPE html>
       }
     }
 
-    async function applyUpdate(nodeId) {
+    async function applyUpdate(nodeId, softwareVersion) {
       if (!window.confirm(`Install the software update on node ${nodeId}? The device may restart during the update.`)) {
         return;
       }
       const panel = document.getElementById(`update-info-${nodeId}`);
       panel.innerHTML = '<div class="update-detail">Starting update… This may take several minutes.</div>';
       try {
-        await api(`api/device/${nodeId}/update`, { method: 'POST', body: '{}' });
+        await api(`api/device/${nodeId}/update`, { method: 'POST', body: JSON.stringify({ software_version: softwareVersion }) });
         panel.innerHTML = '<div class="update-detail" style="color:var(--success);">Update started. The device will restart when complete.</div>';
         setFlash(`Update started on node ${nodeId}.`);
       } catch (error) {
@@ -1079,8 +1080,12 @@ class Thread2MqttWebUi:
     async def _handle_update(self, request: web.Request) -> web.Response:
         node_id = int(request.match_info["node_id"])
         self._require_command_router()
+        payload = await self._read_json(request)
+        software_version = payload.get("software_version")
+        if software_version is None:
+            raise self._json_error(web.HTTPBadRequest, "Missing 'software_version' in payload")
         try:
-            result = await self._matter_client.update_node(node_id)
+            result = await self._matter_client.update_node(node_id, software_version)
         except MatterClientError as err:
             raise self._json_error(web.HTTPBadRequest, str(err)) from err
         return web.json_response({"ok": True, "result": result})

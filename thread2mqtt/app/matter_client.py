@@ -134,9 +134,9 @@ class MatterClient:
         """Check if an OTA software update is available for a node."""
         return await self._send_command("check_node_update", node_id=node_id)
 
-    async def update_node(self, node_id: int) -> Any:
+    async def update_node(self, node_id: int, software_version: int | str) -> Any:
         """Start an OTA software update on a node."""
-        return await self._send_command("update_node", node_id=node_id)
+        return await self._send_command("update_node", node_id=node_id, software_version=software_version)
 
     async def send_device_command(
         self,
