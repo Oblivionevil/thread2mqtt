@@ -249,6 +249,17 @@ UI_HTML = """<!DOCTYPE html>
       box-shadow: 0 14px 26px rgba(255, 118, 118, 0.22);
     }
 
+    .update-info {
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(85, 206, 164, 0.08);
+      border: 1px solid rgba(85, 206, 164, 0.25);
+    }
+
+    .update-info h4 { margin: 0 0 8px; color: var(--success); font-size: 14px; }
+    .update-info .update-detail { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+    .update-info .update-actions { margin-top: 10px; }
+
     .flash {
       display: none;
       margin-top: 18px;
@@ -608,8 +619,11 @@ UI_HTML = """<!DOCTYPE html>
             <button type="button" class="ghost" onclick="pingDevice(${device.node_id})">Ping</button>
             <button type="button" class="ghost" onclick="renameDevice(${device.node_id}, '${escapeHtml(device.friendly_name)}')">Rename</button>
             <button type="button" class="ghost" onclick="openCommissioningWindow(${device.node_id})">Share</button>
+            <button type="button" class="ghost" onclick="checkUpdate(${device.node_id})">Check Update</button>
             <button type="button" class="danger" onclick="removeDevice(${device.node_id})">Remove</button>
           </div>
+
+          <div id="update-info-${device.node_id}" class="update-info" style="display:none; margin-top:10px;"></div>
 
           ${canBrightness ? `
             <div class="range-wrap">
@@ -778,6 +792,57 @@ UI_HTML = """<!DOCTYPE html>
       }
     }
 
+    async function checkUpdate(nodeId) {
+      const panel = document.getElementById(`update-info-${nodeId}`);
+      panel.style.display = 'block';
+      panel.innerHTML = '<div class="update-detail">Checking for updates…</div>';
+      try {
+        const result = await api(`api/device/${nodeId}/check-update`, { method: 'POST', body: '{}' });
+        if (result.update_available && result.update_info) {
+          const info = result.update_info;
+          panel.innerHTML = `
+            <h4>Update available</h4>
+            ${info.software_version_string ? `<div class="update-detail">Version: ${escapeHtml(info.software_version_string)}</div>` : ''}
+            ${info.software_version != null ? `<div class="update-detail">Build: ${escapeHtml(info.software_version)}</div>` : ''}
+            ${info.release_notes_url ? `<div class="update-detail"><a href="${escapeHtml(info.release_notes_url)}" target="_blank" rel="noopener" style="color:var(--accent);">Release notes</a></div>` : ''}
+            <div class="update-actions">
+              <button type="button" onclick="applyUpdate(${nodeId})">Install Update</button>
+              <button type="button" class="ghost" onclick="dismissUpdate(${nodeId})">Dismiss</button>
+            </div>
+          `;
+          setFlash(`Update available for node ${nodeId}.`);
+        } else {
+          panel.innerHTML = '<div class="update-detail">No update available. Device is up to date.</div>';
+          setFlash(`Node ${nodeId} is up to date.`);
+          window.setTimeout(() => { panel.style.display = 'none'; }, 4000);
+        }
+      } catch (error) {
+        panel.innerHTML = `<div class="update-detail" style="color:var(--danger);">${escapeHtml(error.message)}</div>`;
+        setFlash(error.message, 'error');
+      }
+    }
+
+    async function applyUpdate(nodeId) {
+      if (!window.confirm(`Install the software update on node ${nodeId}? The device may restart during the update.`)) {
+        return;
+      }
+      const panel = document.getElementById(`update-info-${nodeId}`);
+      panel.innerHTML = '<div class="update-detail">Starting update… This may take several minutes.</div>';
+      try {
+        await api(`api/device/${nodeId}/update`, { method: 'POST', body: '{}' });
+        panel.innerHTML = '<div class="update-detail" style="color:var(--success);">Update started. The device will restart when complete.</div>';
+        setFlash(`Update started on node ${nodeId}.`);
+      } catch (error) {
+        panel.innerHTML = `<div class="update-detail" style="color:var(--danger);">Update failed: ${escapeHtml(error.message)}</div>`;
+        setFlash(error.message, 'error');
+      }
+    }
+
+    function dismissUpdate(nodeId) {
+      const panel = document.getElementById(`update-info-${nodeId}`);
+      panel.style.display = 'none';
+    }
+
     document.getElementById('commission-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const code = document.getElementById('commission-code').value.trim();
@@ -860,6 +925,8 @@ class Thread2MqttWebUi:
                 web.post(r"/api/device/{node_id:\\d+}/rename", self._handle_device_rename),
                 web.post(r"/api/device/{node_id:\\d+}/ping", self._handle_device_ping),
                 web.post(r"/api/device/{node_id:\\d+}/open-commissioning-window", self._handle_open_commissioning_window),
+                web.post(r"/api/device/{node_id:\\d+}/check-update", self._handle_check_update),
+                web.post(r"/api/device/{node_id:\\d+}/update", self._handle_update),
                 web.delete(r"/api/device/{node_id:\\d+}", self._handle_device_remove),
             ]
         )
@@ -963,6 +1030,24 @@ class Thread2MqttWebUi:
         self._require_command_router()
         try:
             result = await self._matter_client.open_commissioning_window(node_id)
+        except MatterClientError as err:
+            raise self._json_error(web.HTTPBadRequest, str(err)) from err
+        return web.json_response({"ok": True, "result": result})
+
+    async def _handle_check_update(self, request: web.Request) -> web.Response:
+        node_id = int(request.match_info["node_id"])
+        self._require_command_router()
+        try:
+            result = await self._matter_client.check_node_update(node_id)
+        except MatterClientError as err:
+            raise self._json_error(web.HTTPBadRequest, str(err)) from err
+        return web.json_response({"ok": True, "update_available": result is not None, "update_info": result})
+
+    async def _handle_update(self, request: web.Request) -> web.Response:
+        node_id = int(request.match_info["node_id"])
+        self._require_command_router()
+        try:
+            result = await self._matter_client.update_node(node_id)
         except MatterClientError as err:
             raise self._json_error(web.HTTPBadRequest, str(err)) from err
         return web.json_response({"ok": True, "result": result})

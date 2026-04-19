@@ -130,6 +130,14 @@ class MatterClient:
     async def ping_node(self, node_id: int) -> Any:
         return await self._send_command("ping_node", node_id=node_id)
 
+    async def check_node_update(self, node_id: int) -> Any:
+        """Check if an OTA software update is available for a node."""
+        return await self._send_command("check_node_update", node_id=node_id)
+
+    async def update_node(self, node_id: int) -> Any:
+        """Start an OTA software update on a node."""
+        return await self._send_command("update_node", node_id=node_id)
+
     async def send_device_command(
         self,
         node_id: int,
