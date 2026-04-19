@@ -1,5 +1,5 @@
 name: "Thread2MQTT"
-version: "0.1.13"
+version: "0.1.14"
 slug: "thread2mqtt"
 description: >-
   Experimental Matter-over-Thread to MQTT bridge for Home Assistant.
@@ -45,6 +45,7 @@ options:
     port: 5581
     listen_address: 127.0.0.1
     commissioning_ip: ""
+    bluetooth_adapter: 0
 schema:
   log_level: list(trace|debug|info|notice|warning|error|fatal)
   mqtt:
@@ -70,3 +71,4 @@ schema:
     port: port
     listen_address: str?
     commissioning_ip: str?
+    bluetooth_adapter: int(0,10)?

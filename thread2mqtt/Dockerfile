@@ -14,6 +14,9 @@ RUN apt-get update \
         libnl-3-200 \
         libnl-route-3-200 \
         netcat-openbsd \
+        bluez \
+        libbluetooth-dev \
+        libudev-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/thread2mqtt

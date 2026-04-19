@@ -25,6 +25,12 @@ if [ -n "${MATTER_LISTEN_ADDRESS}" ]; then
     MATTER_ARGS+=(--listen-address "${MATTER_LISTEN_ADDRESS}")
 fi
 
+BLUETOOTH_ADAPTER="$(bashio::config 'matter.bluetooth_adapter' || echo '')"
+if [ -n "${BLUETOOTH_ADAPTER}" ]; then
+    bashio::log.info "Bluetooth adapter configured: hci${BLUETOOTH_ADAPTER}"
+    MATTER_ARGS+=(--bluetooth-adapter "${BLUETOOTH_ADAPTER}")
+fi
+
 matter-server "${MATTER_ARGS[@]}" &
 MATTER_PID=$!
 
