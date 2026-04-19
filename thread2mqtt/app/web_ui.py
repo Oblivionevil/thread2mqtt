@@ -771,21 +771,21 @@ class Thread2MqttWebUi:
 
     async def _handle_commission(self, request: web.Request) -> web.Response:
         payload = await self._read_json(request)
-      code_value = payload.get("code")
-      code = str(code_value).strip() if code_value is not None else ""
-      ip_addr = str(payload.get("ip") or payload.get("ip_addr") or "").strip()
+        code_value = payload.get("code")
+        code = str(code_value).strip() if code_value is not None else ""
+        ip_addr = str(payload.get("ip") or payload.get("ip_addr") or "").strip()
 
-      try:
-        setup_pin_code = self._parse_setup_pin_code(payload.get("setup_pin_code", payload.get("setup_pin")))
-      except ValueError as err:
-        raise self._json_error(web.HTTPBadRequest, str(err)) from err
+        try:
+            setup_pin_code = self._parse_setup_pin_code(payload.get("setup_pin_code", payload.get("setup_pin")))
+        except ValueError as err:
+            raise self._json_error(web.HTTPBadRequest, str(err)) from err
 
-      if not code and setup_pin_code is None:
-        raise self._json_error(web.HTTPBadRequest, "Missing Matter pairing code or setup_pin_code")
+        if not code and setup_pin_code is None:
+            raise self._json_error(web.HTTPBadRequest, "Missing Matter pairing code or setup_pin_code")
 
         router = self._require_command_router()
         try:
-        await router.commission(code or None, ip_addr=ip_addr or None, setup_pin_code=setup_pin_code)
+            await router.commission(code or None, ip_addr=ip_addr or None, setup_pin_code=setup_pin_code)
         except MatterClientError as err:
             raise self._json_error(web.HTTPBadRequest, str(err)) from err
         return web.json_response({"ok": True})
@@ -897,11 +897,11 @@ class Thread2MqttWebUi:
         except ValueError:
             return False
 
-      @staticmethod
-      def _parse_setup_pin_code(value: Any) -> int | None:
+    @staticmethod
+    def _parse_setup_pin_code(value: Any) -> int | None:
         if value in (None, ""):
-          return None
+            return None
         try:
-          return int(value)
+            return int(value)
         except (TypeError, ValueError) as err:
-          raise ValueError("setup_pin_code must be an integer") from err
+            raise ValueError("setup_pin_code must be an integer") from err
