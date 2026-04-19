@@ -1,5 +1,5 @@
 name: "Thread2MQTT"
-version: "0.1.12"
+version: "0.1.13"
 slug: "thread2mqtt"
 description: >-
   Experimental Matter-over-Thread to MQTT bridge for Home Assistant.
